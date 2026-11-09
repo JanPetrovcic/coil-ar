@@ -1,31 +1,37 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Coil AR — tracking test v3</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Coil AR — tracking test v4</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   <style>
-    * { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #101010; font-family: system-ui, sans-serif; }
-    /* MindAR expects a full-page scene. Do not use A-Frame's `embedded` option. */
-    a-scene { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; }
-    /* Fix camera positioning on devices where MindAR initially calculates a wrong viewport size. */
-    body > video, body > div > video, a-scene > video { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; object-fit: cover !important; margin: 0 !important; transform: none !important; }
-    .a-enter-vr, .a-enter-ar { display: none !important; }
-    #status, #info, #diag { position: fixed; z-index: 9999; left: 12px; right: 12px; color: white; text-align: center; border-radius: 12px; background: rgba(0,0,0,.76); pointer-events: none; }
-    #status { top: 12px; padding: 12px; font-size: 15px; }
-    #info { bottom: 42px; padding: 9px; font-size: 13px; }
-    #diag { bottom: 8px; padding: 5px; font-size: 11px; color: #c5e7ff; }
+    * {box-sizing:border-box}
+    html, body {margin:0;width:100%;height:100%;overflow:hidden;background:#101010;font-family:system-ui,sans-serif}
+    a-scene {position:fixed !important;inset:0 !important;width:100% !important;height:100% !important}
+    .a-enter-vr,.a-enter-ar {display:none !important}
+    #hud {position:fixed;z-index:9999;left:12px;right:12px;top:12px;display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+    #status,#diagnostics {background:rgba(0,0,0,.82);color:white;text-align:center;border-radius:12px;padding:12px;width:100%;overflow-wrap:anywhere}
+    #diagnostics {font-size:12px;color:#c8e9ff;padding:7px}
+    #controls {display:flex;gap:10px;pointer-events:auto}
+    button {border:0;border-radius:12px;background:#d5eaff;color:#142635;padding:13px 18px;font-size:17px;font-weight:600}
+    button:disabled {opacity:.5}
+    #hint {position:fixed;z-index:9999;bottom:18px;left:12px;right:12px;background:rgba(0,0,0,.8);color:white;text-align:center;padding:12px;border-radius:12px;font-size:14px;pointer-events:none}
   </style>
 </head>
 <body>
-  <div id="status" role="status">v3: Starting camera…</div>
-  <div id="info">Aim at wood. Red X · green Y · blue Z</div>
-  <div id="diag">Screen / camera diagnostics starting…</div>
+  <div id="hud">
+    <div id="status" role="status">v4: Tap Start AR to open camera</div>
+    <div id="controls">
+      <button id="start" disabled>Loading AR…</button>
+      <button id="stop" style="display:none">Stop AR</button>
+    </div>
+    <div id="diagnostics">Initializing scene…</div>
+  </div>
+  <div id="hint">Aim at the wooden panel. Red X · green Y · blue Z.</div>
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: no; uiScanning: no; uiError: yes; filterMinCF: 0.0001; filterBeta: 10;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;"
     color-space="sRGB"
     renderer="colorManagement: true; antialias: true; alpha: true"
     vr-mode-ui="enabled: false"
@@ -39,34 +45,76 @@
       <a-cone position="0 0.46 0.025" radius-bottom="0.025" radius-top="0" height="0.08" color="#41e66b"></a-cone>
       <a-cylinder position="0 0 0.24" radius="0.009" height="0.44" rotation="90 0 0" color="#4a9cff"></a-cylinder>
       <a-cone position="0 0 0.48" radius-bottom="0.025" radius-top="0" height="0.08" rotation="90 0 0" color="#4a9cff"></a-cone>
-      <a-box position="-0.20 -0.15 0.10" depth="0.17" height="0.17" width="0.17" color="#ffcf4b" material="opacity:0.9;transparent:true"></a-box>
+      <a-box position="-0.20 -0.15 0.10" depth="0.17" height="0.17" width="0.17" color="#ffcf4b" material="opacity: 0.9; transparent: true"></a-box>
     </a-entity>
   </a-scene>
   <script>
-    const statusEl = document.querySelector('#status');
-    const diagEl = document.querySelector('#diag');
-    const sceneEl = document.querySelector('a-scene');
-    document.querySelector('#wood-target').addEventListener('targetFound', () => {
-      statusEl.textContent = '✓ TRACKING — move phone slowly';
-      statusEl.style.background = 'rgba(12,100,55,.86)';
-    });
-    document.querySelector('#wood-target').addEventListener('targetLost', () => {
-      statusEl.textContent = 'v3: Target lost — aim at wooden panel';
-      statusEl.style.background = 'rgba(0,0,0,.76)';
-    });
-    sceneEl.addEventListener('arReady', () => { statusEl.textContent = 'v3: Camera ready — aim at wood'; updateDiagnostics(); });
-    sceneEl.addEventListener('arError', () => { statusEl.textContent = 'AR error: check targets.mind and camera access'; });
+    const scene = document.querySelector('a-scene');
+    const target = document.getElementById('wood-target');
+    const startButton = document.getElementById('start');
+    const stopButton = document.getElementById('stop');
+    const status = document.getElementById('status');
+    const diagnostics = document.getElementById('diagnostics');
+    let starting = false;
+    let started = false;
+    let sceneLoaded = false;
+    const say = (message) => {status.textContent = message; updateDiagnostics();};
     function updateDiagnostics() {
-      const v = [...document.querySelectorAll('video')].find(el => el.srcObject);
-      const c = sceneEl.querySelector('canvas');
-      const vr = v?.getBoundingClientRect();
-      const cr = c?.getBoundingClientRect();
-      const short = r => r ? `${Math.round(r.width)}×${Math.round(r.height)} @${Math.round(r.left)}` : 'none';
-      diagEl.textContent = `screen ${innerWidth}×${innerHeight} · video ${short(vr)} · canvas ${short(cr)}`;
+      const video = [...document.querySelectorAll('video')].find(v => v.srcObject) || document.querySelector('video');
+      const rect = video?.getBoundingClientRect();
+      const stream = video?.srcObject;
+      const tracks = stream?.getVideoTracks?.() || [];
+      const cameraState = tracks[0]?.readyState || 'none';
+      diagnostics.textContent = `screen ${innerWidth}×${innerHeight} | scene ${sceneLoaded?'loaded':'loading'} | video ${video?`${video.videoWidth}×${video.videoHeight}`:'none'} | stream ${cameraState} | playing ${video ? (!video.paused && video.readyState >= 2) : false}`;
     }
+    function enableStart() {
+      if (sceneLoaded) return;
+      sceneLoaded = true;
+      startButton.disabled = false;
+      startButton.textContent = 'Start AR camera';
+      say('v4: Ready — tap Start AR camera');
+    }
+    if (scene.hasLoaded) enableStart();
+    else scene.addEventListener('loaded', enableStart, {once:true});
+    startButton.addEventListener('click', async () => {
+      if (starting || started) return;
+      starting = true;
+      startButton.disabled = true;
+      say('v4: Starting MindAR camera…');
+      try {
+        const system = scene.systems['mindar-image-system'];
+        if (!system) throw new Error('MindAR system unavailable');
+        await system.start();
+        started = true;
+        startButton.style.display = 'none';
+        stopButton.style.display = '';
+        say('v4: AR running — aim at the wooden panel');
+      } catch (err) {
+        say(`v4: Start failed — ${err?.name || 'Error'}: ${err?.message || String(err)}`);
+        startButton.disabled = false;
+        startButton.textContent = 'Try again';
+      } finally {starting = false; updateDiagnostics();}
+    });
+    stopButton.addEventListener('click', () => {
+      try {scene.systems['mindar-image-system']?.stop();}
+      catch (err) {say(`Stop error: ${err.message}`);}
+      started = false;
+      stopButton.style.display = 'none';
+      startButton.style.display = '';
+      startButton.disabled = false;
+      startButton.textContent = 'Start AR camera';
+      say('v4: Stopped. Tap Start AR camera.');
+    });
+    scene.addEventListener('arReady', () => say('v4: Camera ready — aim at the wooden panel'));
+    scene.addEventListener('arError', event => {
+      say('v4: MindAR camera error. Close other camera tabs and try again.');
+      startButton.disabled = false;
+      startButton.textContent = 'Try again';
+    });
+    target.addEventListener('targetFound', () => say('✓ TRACKING WOOD — move phone slowly'));
+    target.addEventListener('targetLost', () => say('v4: Target lost — aim at wooden panel'));
     window.addEventListener('resize', updateDiagnostics);
-    window.addEventListener('orientationchange', updateDiagnostics);
-    setInterval(updateDiagnostics, 2000);
+    setInterval(updateDiagnostics, 1500);
   </script>
 </body>
 </html>
