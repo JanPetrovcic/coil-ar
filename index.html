@@ -2,63 +2,89 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Coil AR — tracking test v5</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Coil AR — tracking test v6</title>
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 <style>
-*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101010;font-family:system-ui,sans-serif}
-/* The preview is a second VIDEO ELEMENT fed by the SAME MindAR camera stream,
-   not a second getUserMedia call. The A-Frame canvas sits transparently above it. */
-#camera-preview{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;object-fit:cover!important;z-index:1!important;background:#111;display:none}
-a-scene{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;z-index:2!important;background:transparent!important}
-a-scene canvas{background:transparent!important}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#111;font-family:system-ui,sans-serif}
+/* MindAR's ORIGINAL camera video is already playing. Show it directly instead of copying its stream. */
+video:not(#unused){position:fixed!important;inset:0!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;min-width:100vw!important;min-height:100vh!important;max-width:none!important;max-height:none!important;object-fit:cover!important;transform:none!important;margin:0!important;z-index:1!important;display:block!important;visibility:visible!important;opacity:1!important;background:#111!important}
+a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;z-index:2!important;background:transparent!important;pointer-events:none!important}
+a-scene canvas{background:transparent!important;opacity:1!important;display:block!important}
 .a-enter-vr,.a-enter-ar{display:none!important}
-#hud{position:fixed;z-index:1000;left:10px;right:10px;top:12px;display:flex;flex-direction:column;align-items:center;gap:9px;pointer-events:none}
-#status,#diag{background:rgba(0,0,0,.8);color:white;text-align:center;border-radius:12px;padding:10px 12px;width:100%;overflow-wrap:anywhere}
-#diag{font-size:12px;color:#c9eaff}#buttons{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;pointer-events:auto}button{border:0;border-radius:11px;background:#d5eaff;color:#142635;padding:11px 14px;font-size:15px;font-weight:600}button:disabled{opacity:.5}
-#hint{position:fixed;z-index:1000;bottom:16px;left:10px;right:10px;background:rgba(0,0,0,.75);color:white;text-align:center;padding:10px;border-radius:12px;font-size:13px;pointer-events:none}
+#hud{position:fixed;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;z-index:10000;display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+#status,#diag{width:100%;padding:10px 12px;background:rgba(0,0,0,.81);color:white;border-radius:12px;text-align:center;overflow-wrap:anywhere}
+#diag{font-size:12px;color:#c8e9ff}
+#buttons{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;pointer-events:auto}
+button{font-size:16px;font-weight:600;border:0;border-radius:12px;background:#d8edff;color:#152b38;padding:12px 15px}button:disabled{opacity:.5}
+#hint{position:fixed;bottom:calc(14px + env(safe-area-inset-bottom));left:10px;right:10px;z-index:10000;padding:10px;background:rgba(0,0,0,.8);color:#fff;text-align:center;font-size:13px;border-radius:12px;pointer-events:none}
 </style>
 </head>
 <body>
-<video id="camera-preview" autoplay muted playsinline webkit-playsinline></video>
-<div id="hud"><div id="status">v5: Tap Start AR camera</div><div id="buttons"><button id="start" disabled>Loading AR…</button><button id="toggle" style="display:none">Camera only</button><button id="stop" style="display:none">Stop AR</button></div><div id="diag">Initializing…</div></div>
-<div id="hint">Aim at wooden panel. Red X · green Y · blue outward Z.</div>
-<a-scene mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no;" color-space="sRGB" renderer="colorManagement: true; antialias: true; alpha: true" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false" embedded>
-<a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+<div id="hud"><div id="status">v6: Loading tracking system…</div><div id="buttons"><button id="start" disabled>Loading…</button><button id="layer" hidden>Hide AR overlay</button><button id="stop" hidden>Stop camera</button></div><div id="diag">Waiting…</div></div>
+<div id="hint">Aim at the wooden panel. Red X · green Y · blue outward Z.</div>
+<a-scene embedded mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiScanning: no; uiError: no" renderer="colorManagement: true; antialias: true; alpha: true" color-space="sRGB" vr-mode-ui="enabled: false" device-orientation-permission-ui="enabled: false">
+<a-camera position="0 0 0" look-controls="enabled:false"></a-camera>
 <a-entity id="wood-target" mindar-image-target="targetIndex: 0">
-<a-sphere position="0 0 0.015" radius="0.035" color="#ffffff"></a-sphere>
+<a-sphere position="0 0 0.015" radius="0.035" color="white"></a-sphere>
 <a-cylinder position="0.22 0 0.025" radius="0.009" height="0.44" rotation="0 0 -90" color="#ff3636"></a-cylinder>
 <a-cone position="0.46 0 0.025" radius-bottom="0.025" radius-top="0" height="0.08" rotation="0 0 -90" color="#ff3636"></a-cone>
 <a-cylinder position="0 0.22 0.025" radius="0.009" height="0.44" color="#41e66b"></a-cylinder>
 <a-cone position="0 0.46 0.025" radius-bottom="0.025" radius-top="0" height="0.08" color="#41e66b"></a-cone>
 <a-cylinder position="0 0 0.24" radius="0.009" height="0.44" rotation="90 0 0" color="#4a9cff"></a-cylinder>
 <a-cone position="0 0 0.48" radius-bottom="0.025" radius-top="0" height="0.08" rotation="90 0 0" color="#4a9cff"></a-cone>
-<a-box position="-0.20 -0.15 0.10" depth="0.17" height="0.17" width="0.17" color="#ffcf4b" material="opacity:0.9;transparent:true"></a-box>
+<a-box position="-0.2 -0.15 0.1" depth="0.17" height="0.17" width="0.17" color="#ffcf4b" material="opacity:.9; transparent:true"></a-box>
 </a-entity>
 </a-scene>
 <script>
 const scene=document.querySelector('a-scene');
-const target=document.getElementById('wood-target');
-const startBtn=document.getElementById('start'),toggleBtn=document.getElementById('toggle'),stopBtn=document.getElementById('stop');
 const statusEl=document.getElementById('status'),diag=document.getElementById('diag');
-const preview=document.getElementById('camera-preview');
-let started=false,busy=false,onlyCamera=false;
-const say=s=>{statusEl.textContent=s;diagnose()};
-function sourceVideo(){return [...document.querySelectorAll('video')].find(v=>v!==preview&&v.srcObject)||null}
-function diagnose(){const v=sourceVideo(),t=v?.srcObject?.getVideoTracks?.()[0];const c=scene.querySelector('canvas');const rect=c?.getBoundingClientRect();diag.textContent=`screen ${innerWidth}×${innerHeight} | source ${v?`${v.videoWidth}×${v.videoHeight}`:'none'} ${t?.readyState||'none'} | preview ${preview.readyState>=2&&!preview.paused?'playing':'not playing'} | canvas ${rect?Math.round(rect.width)+'×'+Math.round(rect.height):'none'} | ${onlyCamera?'CAMERA ONLY':'AR OVERLAY'}`;}
-function clearCanvas(){try{const r=scene.renderer;if(r){r.setClearColor(0x000000,0);r.setClearAlpha(0);r.autoClear=true;}}catch(e){} }
-async function attachPreview(){const source=sourceVideo();if(!source||!source.srcObject)throw new Error('MindAR video stream was not found');preview.srcObject=source.srcObject;preview.style.display='block';preview.muted=true;try{await preview.play()}catch(e){say(`Preview playback: ${e.message}`)}clearCanvas();diagnose();}
-function setCameraOnly(on){onlyCamera=on;/* Hide scene only: MindAR continues analyzing its original video stream. */scene.style.opacity=on?'0':'1';toggleBtn.textContent=on?'Show AR overlay':'Camera only';diagnose()}
-function ready(){startBtn.disabled=false;startBtn.textContent='Start AR camera';say('v5: Ready — tap Start AR camera')}
+const start=document.getElementById('start'),stop=document.getElementById('stop'),layer=document.getElementById('layer');
+let running=false,busy=false,arHidden=false;
+function cameraVideo(){return [...document.querySelectorAll('video')].find(v=>v.srcObject)||null}
+function refresh(){
+ const v=cameraVideo(),r=v?.getBoundingClientRect(),can=scene.querySelector('canvas'),cr=can?.getBoundingClientRect();
+ diag.textContent=`screen ${innerWidth}×${innerHeight} | camera ${v?`${v.videoWidth}×${v.videoHeight}`:'none'} ${v?.paused?'paused':'playing'} | video box ${r?`${Math.round(r.width)}×${Math.round(r.height)} @${Math.round(r.x)}`:'none'} | canvas ${cr?`${Math.round(cr.width)}×${Math.round(cr.height)}`:'none'} | ${arHidden?'AR HIDDEN':'AR VISIBLE'}`;
+}
+function say(message){statusEl.textContent=message;refresh()}
+function transparentCanvas(){
+ const renderer=scene.renderer;
+ if(renderer){renderer.setClearColor(0x000000,0);renderer.setClearAlpha(0);}
+}
+function prepareCameraVideo(){
+ const v=cameraVideo();if(!v)return false;
+ v.setAttribute('playsinline','');v.muted=true;
+ // Reset inline styles that MindAR may have written during camera initialization.
+ v.style.setProperty('position','fixed','important');v.style.setProperty('left','0px','important');v.style.setProperty('top','0px','important');
+ v.style.setProperty('width','100vw','important');v.style.setProperty('height','100vh','important');
+ v.style.setProperty('object-fit','cover','important');v.style.setProperty('transform','none','important');
+ v.style.setProperty('z-index','1','important');v.style.setProperty('display','block','important');
+ return true;
+}
+function ready(){start.disabled=false;start.textContent='Start AR camera';say('v6: Tap Start AR camera')}
 if(scene.hasLoaded)ready();else scene.addEventListener('loaded',ready,{once:true});
-startBtn.addEventListener('click',async()=>{if(busy||started)return;busy=true;startBtn.disabled=true;say('v5: Starting camera…');try{const s=scene.systems['mindar-image-system'];if(!s)throw new Error('MindAR system unavailable');await s.start();await attachPreview();started=true;startBtn.style.display='none';toggleBtn.style.display='';stopBtn.style.display='';say('v5: Camera on — aim at wooden panel')}catch(e){say('v5: '+(e?.message||String(e)));startBtn.disabled=false;startBtn.textContent='Try again'}finally{busy=false;diagnose()}});
-toggleBtn.addEventListener('click',()=>setCameraOnly(!onlyCamera));
-stopBtn.addEventListener('click',()=>{try{scene.systems['mindar-image-system']?.stop()}catch(e){}preview.pause();preview.srcObject=null;preview.style.display='none';setCameraOnly(false);started=false;stopBtn.style.display='none';toggleBtn.style.display='none';startBtn.style.display='';startBtn.disabled=false;startBtn.textContent='Start AR camera';say('v5: Stopped')});
-scene.addEventListener('arReady',()=>{clearCanvas();say('v5: MindAR ready — aim at wooden panel')});
-scene.addEventListener('arError',()=>say('v5: MindAR reported an error'));
-target.addEventListener('targetFound',()=>say('✓ TRACKING WOOD — move phone slowly'));
-target.addEventListener('targetLost',()=>say('v5: Target lost — aim at wooden panel'));
-window.addEventListener('resize',diagnose);setInterval(diagnose,1500);
+start.addEventListener('click',async()=>{
+ if(running||busy)return;busy=true;start.disabled=true;say('v6: Starting camera…');
+ try{
+  const system=scene.systems['mindar-image-system'];if(!system)throw new Error('MindAR system missing');
+  await system.start();prepareCameraVideo();transparentCanvas();running=true;
+  start.hidden=true;layer.hidden=false;stop.hidden=false;say('v6: Camera started — aim at wood');
+ }catch(e){say('v6: '+(e?.name||'Error')+' '+(e?.message||String(e)));start.disabled=false;start.textContent='Try again';}
+ finally{busy=false;refresh()}
+});
+layer.addEventListener('click',()=>{arHidden=!arHidden;scene.style.opacity=arHidden?'0':'1';layer.textContent=arHidden?'Show AR overlay':'Hide AR overlay';refresh()});
+stop.addEventListener('click',()=>{try{scene.systems['mindar-image-system']?.stop()}catch(e){}running=false;start.hidden=false;start.disabled=false;start.textContent='Start AR camera';layer.hidden=true;stop.hidden=true;say('v6: Stopped')});
+scene.addEventListener('arReady',()=>{prepareCameraVideo();transparentCanvas();say('v6: MindAR ready — aim at wood')});
+scene.addEventListener('arError',()=>say('v6: MindAR camera error'));
+const target=document.getElementById('wood-target');
+target.addEventListener('targetFound',()=>say('✓ WOOD RECOGNIZED — move your phone'));
+target.addEventListener('targetLost',()=>say('v6: Wood lost — aim at panel'));
+window.addEventListener('resize',()=>{if(running){prepareCameraVideo();transparentCanvas()}refresh()});
+// Some MindAR versions adjust inline video dimensions after the camera starts.
+// Reapply our screen-sized preview without requesting another camera stream.
+setInterval(()=>{if(running){prepareCameraVideo();transparentCanvas()}refresh()},1200);
 </script>
-</body></html>
+</body>
+</html>
