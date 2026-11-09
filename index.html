@@ -1,21 +1,21 @@
 <!doctype html>
-<html lang="sl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>Coil AR — Geometry v6 (stabilnejše sledenje)</title>
+<html lang="sl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>Coil AR — Geometry v7 (stabilnejše sledenje)</title>
 <style>
 *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0a0e14;color:white;font-family:system-ui,Arial,sans-serif}video,canvas{position:fixed;inset:0;width:100%;height:100%;display:block}#camera{z-index:1;object-fit:cover;background:#111}#overlay{z-index:2;touch-action:none}.top,.bottom{position:fixed;left:10px;right:10px;z-index:5;pointer-events:none}.top{top:calc(10px + env(safe-area-inset-top))}.bottom{bottom:calc(12px + env(safe-area-inset-bottom))}.panel{background:rgba(4,10,20,.87);border:1px solid #ffffff35;border-radius:14px;padding:10px 12px;backdrop-filter:blur(5px)}#status{font-size:17px;font-weight:700}#detail{font-size:13px;color:#c9d9e9;margin-top:4px}.buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;pointer-events:auto}button{border:none;border-radius:9px;padding:10px 13px;min-height:42px;background:#d1e8ff;color:#09263d;font:700 14px system-ui}button:disabled{opacity:.45}.secondary{background:#2b3a50;color:#fff}.bottom{font-size:12px}#stats{margin-top:5px;color:#a9c5dc}#guide{display:none;margin-top:8px;font-size:13px;color:#f5dfa0}
 </style></head><body>
 <video id="camera" autoplay muted playsinline webkit-playsinline></video><canvas id="overlay"></canvas><canvas id="proc" hidden></canvas>
-<div class="top"><div class="panel"><div id="status">Geometry v6 — pripravljeno ✓</div><div id="detail">5 točk · polmer ~15 cm · brez OpenCV/WASM. Najprej zaženi kamero.</div><div class="buttons"><button id="start">Zaženi kamero</button><button id="cal" class="secondary" disabled>Označi 5 točk</button><button id="reset" class="secondary" disabled>Ponastavi</button></div><div id="guide">Tapni točke na LESENEM KOSU v vrstnem redu: 1. središče kroga (spodaj levo), 2. spodnja črna črta na loku, 3. srednja črna črta na loku, 4. zgornja črna črta na loku, 5. spodnji desni kot na loku.</div></div></div>
+<div class="top"><div class="panel"><div id="status">Geometry v7 — pripravljeno ✓</div><div id="detail">5 točk · več meril + robustno ujemanje · brez OpenCV/WASM.</div><div class="buttons"><button id="start">Zaženi kamero</button><button id="cal" class="secondary" disabled>Označi 5 točk</button><button id="reset" class="secondary" disabled>Ponastavi</button></div><div id="guide">Tapni točke na LESENEM KOSU v vrstnem redu: 1. središče kroga (spodaj levo), 2. spodnja črna črta na loku, 3. srednja črna črta na loku, 4. zgornja črna črta na loku, 5. spodnji desni kot na loku.</div></div></div>
 <div class="bottom"><div class="panel"><div id="instruction">Po zagonu kamere pritisni »Označi 5 točk«.</div><div id="stats">Kamera: izklopljena · Sledenje: izklopljeno</div></div></div>
 <script>
 'use strict';
 const $=id=>document.getElementById(id),video=$('camera'),canvas=$('overlay'),ctx=canvas.getContext('2d'),proc=$('proc'),pc=proc.getContext('2d',{willReadFrequently:true});
 const status=$('status'),detail=$('detail'),instruction=$('instruction'),stats=$('stats'),startButton=$('start'),calButton=$('cal'),resetButton=$('reset');
 let stream=null, running=false, choosing=false, tracking=false, markers=[], templates=[], prev=null, lastFrame=0, goodCount=0, frame=0;
-let W=320,H=568, currentH=null, initialPts=null, origModel=null, lost=0, viewW=360,viewH=640;
+let W=360,H=568, currentH=null, initialPts=null, origModel=null, lost=0, viewW=360,viewH=640;
 let lastPose=null, rejected=0;
 const pointLabels=['spodnji levi kot / središče kroga','spodnja črna črta na loku','srednja črna črta na loku','zgornja črna črta na loku','spodnji desni kot četrtinskega kroga'];
 function report(s,d=''){status.textContent=s;detail.textContent=d}
-function resize(){const r=canvas.getBoundingClientRect();viewW=r.width;viewH=r.height;canvas.width=Math.round(r.width*devicePixelRatio);canvas.height=Math.round(r.height*devicePixelRatio);ctx.setTransform(canvas.width/r.width,0,0,canvas.height/r.height,0,0);const k=Math.min(1,320/r.width);W=Math.round(r.width*k);H=Math.round(r.height*k);proc.width=W;proc.height=H;if(tracking||choosing)reset('Zaslon se je obrnil — ponovno označi točke.');}
+function resize(){const r=canvas.getBoundingClientRect();viewW=r.width;viewH=r.height;canvas.width=Math.round(r.width*devicePixelRatio);canvas.height=Math.round(r.height*devicePixelRatio);ctx.setTransform(canvas.width/r.width,0,0,canvas.height/r.height,0,0);const k=Math.min(1,360/r.width);W=Math.round(r.width*k);H=Math.round(r.height*k);proc.width=W;proc.height=H;if(tracking||choosing)reset('Zaslon se je obrnil — ponovno označi točke.');}
 function coords(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]}
 function place(p){return [p[0]*viewW/W,p[1]*viewH/H]}
 function line(a,b,color,width=3){if(!a||!b)return;const A=place(a),B=place(b);ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}
@@ -25,27 +25,65 @@ function grayFrame(){const d=pc.getImageData(0,0,W,H).data,g=new Uint8Array(W*H)
 function patch(gray,p,r=10){let x=Math.round(p[0]),y=Math.round(p[1]);if(x<r+2||y<r+2||x>=W-r-2||y>=H-r-2)return null;let a=new Uint8Array((2*r+1)**2),k=0;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)a[k++]=gray[(y+dy)*W+x+dx];return a}
 // Primerjamo IZKLJUČNO z referenčno sliko ob kalibraciji; ne osvežujemo vzorca pri vsakem kadru.
 // Z uporabo kontrasta preprečimo ujemanje enoličnih področij lesa.
-function match(gray,p,tmpl){
-  const x=Math.round(p[0]),y=Math.round(p[1]),r=10,search=12;
-  let best=Infinity, second=Infinity,bx=x,by=y;
-  let mean=0;for(const v of tmpl)mean+=v;mean/=tmpl.length;
-  let texture=0;for(const v of tmpl)texture+=(v-mean)**2;texture=Math.sqrt(texture/tmpl.length);
-  if(texture<10)return null;
-  for(let dy=-search;dy<=search;dy+=2){let yy=y+dy;if(yy-r<0||yy+r>=H)continue;
-    for(let dx=-search;dx<=search;dx+=2){let xx=x+dx;if(xx-r<0||xx+r>=W)continue;
-      let sum=0, k=0, localMean=0;
-      for(let j=-r;j<=r;j++)for(let i=-r;i<=r;i++)localMean+=gray[(yy+j)*W+xx+i];
-      localMean/=tmpl.length;
-      for(let j=-r;j<=r;j++)for(let i=-r;i<=r;i++){
-        const a=gray[(yy+j)*W+xx+i]-localMean;
-        const b=tmpl[k++]-mean;
-        sum+=Math.abs(a-b);
-      }
-      const score=sum/tmpl.length;
-      if(score<best){second=best;best=score;bx=xx;by=yy;}else if(score<second)second=score;
+// Primerjava referenčnega vzorca z novo sliko v različnih merilih in rotacijah.
+// Referenčne vzorce ohranimo nespremenjene, zato preprečimo kumulativno drsenje.
+const PATCH_RADIUS=10;
+function templateInfo(t){
+  let m=0;for(const v of t)m+=v; m/=t.length;
+  let vv=0;for(const v of t)vv+=(v-m)*(v-m);
+  return {data:t,mean:m,std:Math.sqrt(vv/t.length)};
+}
+function similarityParameters(M){
+  let a=M?M[0]:1,b=M?M[3]:0;
+  return {scale:Math.hypot(a,b),angle:Math.atan2(b,a)};
+}
+function bilinear(gray,x,y){
+  let ix=Math.floor(x),iy=Math.floor(y);
+  if(ix<0||iy<0||ix+1>=W||iy+1>=H)return null;
+  let fx=x-ix,fy=y-iy,k=iy*W+ix;
+  return gray[k]*(1-fx)*(1-fy)+gray[k+1]*fx*(1-fy)+gray[k+W]*(1-fx)*fy+gray[k+W+1]*fx*fy;
+}
+function patchScore(gray,cx,cy,tmpl,scale,angle){
+  const c=Math.cos(angle)*scale,si=Math.sin(angle)*scale;
+  let sum=0,sum2=0,n=0;
+  for(let j=-8;j<=8;j+=2)for(let i=-8;i<=8;i+=2){
+    const v=bilinear(gray,cx+c*i-si*j,cy+si*i+c*j);
+    if(v===null)return Infinity;
+    sum+=v;sum2+=v*v;n++;
+  }
+  const mean=sum/n,std=Math.sqrt(Math.max(0,sum2/n-mean*mean));
+  if(std<6||tmpl.std<8)return Infinity;
+  let diff=0;
+  for(let j=-8;j<=8;j+=2)for(let i=-8;i<=8;i+=2){
+    const v=bilinear(gray,cx+c*i-si*j,cy+si*i+c*j);
+    const ref=tmpl.data[(j+PATCH_RADIUS)*21+(i+PATCH_RADIUS)];
+    diff+=Math.abs((v-mean)/std-(ref-tmpl.mean)/tmpl.std);
+  }
+  return diff/n;
+}
+function match(gray,p,tmpl,pose){
+  if(!p||!tmpl||tmpl.std<8)return null;
+  const base=similarityParameters(pose),scale0=base.scale;
+  const scales=[.78,1,1.23].map(v=>Math.max(.45,Math.min(2.1,v*scale0)));
+  const angles=[-.12,0,.12].map(v=>base.angle+v);
+  let best={score:Infinity};
+  // Groba iskalna mreža: omogoča hitrejši premik med sličicami.
+  for(const scale of scales)for(const angle of angles){
+    for(let dy=-24;dy<=24;dy+=6)for(let dx=-24;dx<=24;dx+=6){
+      const x=p[0]+dx,y=p[1]+dy;
+      const score=patchScore(gray,x,y,tmpl,scale,angle);
+      if(score<best.score)best={score,p:[x,y],scale,angle};
     }
   }
-  return Number.isFinite(best)?{p:[bx,by],score:best,texture}:null;
+  if(!best.p)return null;
+  // Natančnejše iskanje samo ob najboljšem kandidatu.
+  let fine=best;
+  for(let dy=-5;dy<=5;dy+=1)for(let dx=-5;dx<=5;dx+=1){
+    const x=best.p[0]+dx,y=best.p[1]+dy;
+    const score=patchScore(gray,x,y,tmpl,best.scale,best.angle);
+    if(score<fine.score)fine={score,p:[x,y],scale:best.scale,angle:best.angle};
+  }
+  return fine.score<0.85?fine:null;
 }
 // Ena toga 2D transformacija za vse pet točk: translacija, rotacija in merilo.
 // Tako se obris ne more zvijati zaradi štirih neodvisnih premikov.
@@ -128,38 +166,61 @@ function drawAxes(M){if(!M)return;
 }
 function reset(message){lastPose=null;rejected=0;choosing=false;tracking=false;markers=[];templates=[];currentH=null;initialPts=null;origModel=null;lost=0;calButton.disabled=!running;resetButton.disabled=!running;$('guide').style.display='none';if(message)report(message);instruction.textContent='Pritisni »Označi 5 točk« in označi pet točk na lesu.'}
 function startCalibration(){if(!running)return;reset();choosing=true;$('guide').style.display='block';calButton.disabled=true;report('Označi točko 1/5',pointLabels[0]);instruction.textContent='Dotakni se središča četrtinskega kroga — spodnji levi kot (točka 1).'}
-function finishCalibration(){if(!sampleVideo())return;const gray=grayFrame();templates=markers.map(p=>patch(gray,p,10));if(templates.some(p=>!p)){reset('Točka je preblizu roba zaslona. Ponovi označevanje.');return}initialPts=markers.map(p=>p.slice());currentH=homography(model,markers);lastPose=[1,0,0,0,1,0,0,0,1];if(!currentH){reset('Kalibracija ni uspela — ponovno označi točke.');return}choosing=false;tracking=true;lost=0;$('guide').style.display='none';calButton.disabled=false;report('Geometry v6 · sledenje vključeno ✓','Premikaj telefon počasi. Pri velikih kotih lahko sledenje obstane.');instruction.textContent='5 točk → homografija in približna 3D orientacija. Z~ je približna normala. Ob izgubi sledenja zamrznemo položaj.'}
+function finishCalibration(){if(!sampleVideo())return;const gray=grayFrame();templates=markers.map(p=>{const t=patch(gray,p,10);return t?templateInfo(t):null});if(templates.some(p=>!p)){reset('Točka je preblizu roba zaslona. Ponovi označevanje.');return}initialPts=markers.map(p=>p.slice());currentH=homography(model,markers);lastPose=[1,0,0,0,1,0,0,0,1];if(!currentH){reset('Kalibracija ni uspela — ponovno označi točke.');return}choosing=false;tracking=true;lost=0;$('guide').style.display='none';calButton.disabled=false;report('Geometry v7 · sledenje vključeno ✓','Premikaj telefon počasi. Podpira zmeren zoom in nagib. Pri zelo poševnem pogledu se lahko izgubi.');instruction.textContent='5 točk → iskanje z več merili, izločanje napačnih točk in homografija. Z~ je približna normala. Ob izgubi sledenja zamrznemo položaj.'}
+function robustFit(src,dst,valid){
+  // Kandidati iz parov točk; izločimo napačne lokalne zadetke.
+  let best=null;
+  for(let i=0;i<valid.length;i++)for(let j=i+1;j<valid.length;j++){
+    const indices=[valid[i],valid[j]];
+    const f=fitSimilarity(indices.map(k=>src[k]),indices.map(k=>dst[k]));
+    if(!f)continue;
+    const inliers=valid.filter(k=>{
+      const q=project(f.M,src[k]);return q&&Math.hypot(q[0]-dst[k][0],q[1]-dst[k][1])<5;
+    });
+    let error=0;for(const k of inliers){const q=project(f.M,src[k]);error+=Math.hypot(q[0]-dst[k][0],q[1]-dst[k][1]);}
+    if(!best||inliers.length>best.inliers.length||(inliers.length===best.inliers.length&&error<best.error))best={inliers,error};
+  }
+  if(!best||best.inliers.length<4)return null;
+  const fit=fitSimilarity(best.inliers.map(k=>src[k]),best.inliers.map(k=>dst[k]));
+  if(!fit||fit.rms>4)return null;
+  return {...fit,inliers:best.inliers};
+}
 function track(gray){
-  // Zadnja sprejeta poza je osnova iskanja; referenca ostaja originalni kader.
   if(!lastPose||!initialPts)return;
   const expected=initialPts.map(p=>project(lastPose,p));
-  const matches=expected.map((p,i)=>match(gray,p,templates[i]));
-  if(matches.some(m=>!m||m.score>22)){
-    rejected++;if(rejected>18){tracking=false;report('Sledenje izgubljeno','Ponovno označi pet točk.');calButton.disabled=false;}
-    else report('Sledenje začasno zamrznjeno',`Nezanesljiv vzorec (${rejected}/18) — poglej bolj od spredaj.`);
+  const matches=expected.map((p,i)=>match(gray,p,templates[i],lastPose));
+  const found=matches.map(m=>m?m.p:null);
+  const valid=matches.map((m,i)=>m?i:-1).filter(i=>i>=0);
+  const fit=valid.length>=4?robustFit(initialPts,found,valid):null;
+  if(!fit){
+    rejected++;
+    report('Sledenje začasno zamrznjeno',`Premalo zanesljivih točk (${valid.length}/5). Telefon usmeri nekoliko bolj od spredaj.`);
+    if(rejected>45){tracking=false;report('Target lost','Slikovni vzorci se ne ujemajo več. Ponovno označi 5 točk.');calButton.disabled=false;}
     return;
   }
-  const found=matches.map(m=>m.p);
-  const fit=fitSimilarity(initialPts,found);
-  if(!fit||fit.error>5.5||fit.rms>3.5){
-    rejected++;if(rejected>18){tracking=false;report('Sledenje izgubljeno','Ponovno označi pet točk.');calButton.disabled=false;}
-    else report('Sledenje začasno zamrznjeno','Točke se ne premikajo skladno.');
-    return;
-  }
-  const lastExpected=expected, proposed=initialPts.map(p=>project(fit.M,p));
-  const jump=Math.max(...proposed.map((p,i)=>Math.hypot(p[0]-lastExpected[i][0],p[1]-lastExpected[i][1])));
-  if(jump>16){rejected++;report('Sledenje začasno zamrznjeno','Prevelik skok. Premikaj telefon počasneje.');return}
-  const Hnew=homography(model,found);
+  const proposed=initialPts.map(p=>project(fit.M,p));
+  const jump=Math.max(...proposed.map((p,i)=>Math.hypot(p[0]-expected[i][0],p[1]-expected[i][1])));
+  if(jump>25){rejected++;report('Sledenje začasno zamrznjeno','Prevelik skok v položaju.');return;}
+  const inlierModel=fit.inliers.map(k=>model[k]);
+  const inlierImage=fit.inliers.map(k=>found[k]);
+  const Hnew=homography(inlierModel,inlierImage);
   if(!Hnew)return;
-  // Zavrnemo, če homografija ne opisuje vseh petih točk z dovolj majhno napako.
-  const reproj=model.map((p,i)=>Math.hypot(...project(Hnew,p).map((v,j)=>v-found[i][j])));
-  if(Math.max(...reproj)>4.5){rejected++;report('Sledenje začasno zamrznjeno','Točke ne določajo skladne ravnine.');return}
-  rejected=0;lost=0;lastPose=fit.M;markers=found;currentH=Hnew;goodCount++;
-  if(goodCount%8===0)report('Geometry v6 · stabilno sledenje ✓',`Perspektivna ravnina (5 točk) · odstopanje ${fit.rms.toFixed(1)} px`);
+  const reproj=fit.inliers.map((k,i)=>{const p=project(Hnew,model[k]);return p?Math.hypot(p[0]-found[k][0],p[1]-found[k][1]):Infinity});
+  if(Math.max(...reproj)>5){rejected++;return;}
+  // Glajenje točk zmanjša tresenje osi; vendar ne spreminja referenčnih vzorcev.
+  const alpha=.5;
+  markers=initialPts.map((p,i)=>{
+    const q=project(Hnew,model[i]),old=markers[i];
+    return old?[old[0]*(1-alpha)+q[0]*alpha,old[1]*(1-alpha)+q[1]*alpha]:q;
+  });
+  const smoothH=homography(model,markers);
+  if(!smoothH)return;
+  currentH=smoothH;lastPose=fit.M;rejected=0;goodCount++;
+  if(goodCount%7===0)report('Geometry v7 · sledenje ✓',`${fit.inliers.length}/5 ujemanj · napaka ${fit.rms.toFixed(1)} px · zoom ${fit.scale.toFixed(2)}×`);
 }
 function paint(){ctx.clearRect(0,0,viewW,viewH);if(choosing)markers.forEach((p,i)=>dot(p,'#ffe052',String(i+1)));if(tracking&&currentH){drawAxes(currentH);markers.forEach((p,i)=>dot(p,'#ffe052',String(i+1)))}}
-function tick(t){if(!running)return;requestAnimationFrame(tick);if(t-lastFrame<85)return;lastFrame=t;if(!sampleVideo())return;frame++;if(tracking){const g=grayFrame();track(g)}paint();if(frame%12===0)stats.textContent=`Video ${video.videoWidth}×${video.videoHeight} · sledenje ${tracking?'DA':choosing?'označevanje':'NE'} · brez OpenCV / WASM`}
-async function startCamera(){if(running)return;startButton.disabled=true;report('Odpiram kamero…');try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});video.srcObject=stream;await video.play();running=true;resize();calButton.disabled=false;resetButton.disabled=false;startButton.textContent='Ustavi kamero';report('Geometry v6 · kamera deluje ✓','Izberi »Označi 5 točk«');requestAnimationFrame(tick)}catch(err){report('Napaka kamere: '+err.name,err.message||'');if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}finally{startButton.disabled=false}}
+function tick(t){if(!running)return;requestAnimationFrame(tick);if(t-lastFrame<120)return;lastFrame=t;if(!sampleVideo())return;frame++;if(tracking){const g=grayFrame();track(g)}paint();if(frame%12===0)stats.textContent=`Video ${video.videoWidth}×${video.videoHeight} · sledenje ${tracking?'DA':choosing?'označevanje':'NE'} · brez OpenCV / WASM`}
+async function startCamera(){if(running)return;startButton.disabled=true;report('Odpiram kamero…');try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});video.srcObject=stream;await video.play();running=true;resize();calButton.disabled=false;resetButton.disabled=false;startButton.textContent='Ustavi kamero';report('Geometry v7 · kamera deluje ✓','Izberi »Označi 5 točk«');requestAnimationFrame(tick)}catch(err){report('Napaka kamere: '+err.name,err.message||'');if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}finally{startButton.disabled=false}}
 function stopCamera(){running=false;reset();if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.pause();video.srcObject=null;startButton.textContent='Zaženi kamero';calButton.disabled=true;resetButton.disabled=true;report('Kamera ustavljena');stats.textContent='Kamera: izklopljena'}
 startButton.addEventListener('click',()=>running?stopCamera():startCamera());calButton.addEventListener('click',startCalibration);resetButton.addEventListener('click',()=>reset('Ponastavljeno.'));
 canvas.addEventListener('pointerdown',e=>{if(!choosing)return;e.preventDefault();markers.push(coords(e));const n=markers.length;if(n===5){finishCalibration();return}report(`Označi točko ${n+1}/5`,pointLabels[n]);instruction.textContent=`Dotakni se: ${pointLabels[n]}.`});
