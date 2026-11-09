@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#10151c">
-<title>Coil AR — geometrijsko sledenje v2</title>
+<title>Coil AR — geometrijsko sledenje v3</title>
 <style>
   :root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}
   *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080c10;color:white}
@@ -29,7 +29,7 @@
 <canvas id="overlay"></canvas>
 <div class="top">
  <div class="panel">
-  <div id="status">Pripravljam OpenCV…</div>
+  <div id="status">Geometry v3 · pripravljam OpenCV…</div>
   <div id="details">Začetek: kamera se odpre šele s pritiskom na gumb.</div>
   <div class="controls">
     <button id="start">Zaženi kamero</button>
@@ -195,7 +195,7 @@ async function start(){if(running)return;bStart.disabled=true;msg('Zaganjam kame
  stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
  video.srcObject=stream;await video.play();running=true;resize();bCal.disabled=!cvReady;bReset.disabled=false;bLines.disabled=!cvReady;
  bStart.textContent='Ustavi kamero';bStart.disabled=false;
- if(cvReady)msg('Kamera deluje ✓','Označi 4 točke za sledenje.');
+ if(cvReady)msg('Geometry v3 · Kamera deluje ✓','Označi 4 točke za sledenje.');
  requestAnimationFrame(tick);
  }catch(e){bStart.disabled=false;msg('Napaka kamere: '+e.name,e.message||'');}}
 function stop(){running=false;stopTracking();if(stream){stream.getTracks().forEach(x=>x.stop());stream=null}video.pause();video.srcObject=null;bStart.textContent='Zaženi kamero';bStart.disabled=false;bCal.disabled=bLines.disabled=bReset.disabled=true;msg('Kamera ustavljena');ctx.clearRect(0,0,overlay.clientWidth,overlay.clientHeight)}
@@ -204,63 +204,61 @@ bLines.addEventListener('click',()=>{showLines=!showLines;bLines.textContent=sho
 overlay.addEventListener('pointerdown',e=>{if(!calibrating)return;e.preventDefault();manual.push(coord(e));if(manual.length===4)beginTracking();else nextInstruction()});
 window.addEventListener('resize',()=>{if(running)resize()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)stop()});
-// Različne izdaje OpenCV.js javijo pripravljenost različno: globalni cv,
-// Promise ali onRuntimeInitialized. Skript se lahko prenese, preden je WASM pripravljen.
-// Zato nalaganje nadziramo ločeno od dogodka <script onload>.
-let loaderBusy=false;
-const cvSources=[
- 'https://docs.opencv.org/4.x/opencv.js',
- 'https://docs.opencv.org/4.10.0/opencv.js'
-];
-function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
-function withTimeout(p,ms,label){return Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label)),ms))])}
-async function initializeCv(source){
-  // Počakamo na cvApi.Mat, ne le na dogodek 'load'.
-  for(let i=0;i<160;i++){
-    let obj=window.cv;
-    if(obj){
-      if(typeof obj.then==='function'){
-        const resolved=await withTimeout(Promise.resolve(obj),28000,'WASM ni pripravljen');
-        if(resolved)window.cv=resolved;
-        obj=window.cv;
-      }
-      if(obj&&typeof obj.Mat==='function'&&typeof obj.calcOpticalFlowPyrLK==='function')return obj;
-    }
-    await wait(200);
-  }
-  throw new Error('Knjižnica se ni inicializirala');
-}
-function injectScript(url){
-  return new Promise((resolve,reject)=>{
-    const tag=document.createElement('script');tag.src=url;tag.async=true;
-    tag.onload=()=>resolve();tag.onerror=()=>reject(new Error('Prenos spodletel: '+url));
-    document.body.appendChild(tag);
-  });
-}
+// Različice OpenCV.js lahko vrnejo Promise ali uporabljajo Module callback.
+// V3: omejen čas zagona, preverjanje dejanskih metod in natančnejša diagnostika.
+const cvSources=['https://docs.opencv.org/4.10.0/opencv.js','https://docs.opencv.org/4.x/opencv.js'];
+let loaderBusy=false, cvAttempt=0, cvTimer=null;
+const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function hasCvApi(c){return c && typeof c.Mat==='function' && typeof c.calcOpticalFlowPyrLK==='function' && typeof c.findHomography==='function';}
+function scriptLoad(src){return new Promise((resolve,reject)=>{
+  const tag=document.createElement('script'); tag.async=true; tag.src=src;
+  tag.onload=()=>resolve();tag.onerror=()=>reject(new Error('Prenos OpenCV.js ni uspel'));
+  document.head.appendChild(tag);
+});}
 async function loadCv(){
-  if(loaderBusy||cvReady)return;
-  loaderBusy=true;bRetry.style.display='none';
-  let lastError='';
-  for(let i=0;i<cvSources.length;i++){
-    try{
-      msg(`Nalagam OpenCV (${i+1}/${cvSources.length})…`,'Prenos in zagon knjižnice. Kamera se lahko zažene že zdaj.');
-      await withTimeout(injectScript(cvSources[i]),24000,'Prenos traja predolgo');
-      msg('Inicializiram OpenCV…','Knjižnica je prenesena, čakam na WASM.');
-      cvApi=await initializeCv(cvSources[i]);
-      const test=new cvApi.Mat(2,2,cvApi.CV_8UC1);test.delete();
-      cvReady=true;bCal.disabled=!running;bLines.disabled=!running;
-      msg(running?'Kamera deluje ✓':'Pripravljeno ✓','OpenCV naložen. Začni s kamero in izberi 4 točke.');
-      bRetry.style.display='none';loaderBusy=false;return;
-    }catch(err){
-      lastError=String(err?.message||err);console.error('OpenCV loader',err);
-      // Ob napaki inicializacije ne smemo ponovno uporabiti nedokončanega Promise.
-      if(window.cv&&typeof window.cv.then==='function')try{delete window.cv}catch{}
-    }
+ if(loaderBusy||cvReady)return;
+ loaderBusy=true;bRetry.style.display='none';cvAttempt++;
+ // Zamenjava vira po ponovnem poskusu: ne nalagamo obeh izdaj sočasno.
+ const source=cvSources[(Number(new URL(location.href).searchParams.get('cvtry')||0)+cvAttempt-1)%cvSources.length];
+ msg('Geometry v3 · nalagam OpenCV…',source);
+ let runtimeDone=false;
+ window.Module={onRuntimeInitialized(){runtimeDone=true;}};
+ const timeoutMs=35000;
+ try{
+  await Promise.race([scriptLoad(source),delay(20000).then(()=>{throw Error('Časovna omejitev prenosa (20 s)')})]);
+  msg('Geometry v3 · inicializiram WASM…','JavaScript je prenesen. Preverjam cv.Mat in metode sledenja.');
+  const deadline=Date.now()+timeoutMs;
+  while(Date.now()<deadline){
+   let candidate=window.cv;
+   if(candidate&&typeof candidate.then==='function'){
+     // Če je cv Promise, ga je treba razrešiti (uradni OpenCV postopek).
+     const remain=Math.max(100,deadline-Date.now());
+     candidate=await Promise.race([Promise.resolve(candidate),delay(remain).then(()=>{throw Error('WASM Promise se ni zaključil')})]);
+     if(candidate)window.cv=candidate;
+   }
+   if(hasCvApi(candidate)){
+     const m=new candidate.Mat(2,2,candidate.CV_8UC1);m.delete();
+     cvApi=candidate;cvReady=true;loaderBusy=false;
+     bCal.disabled=!running;bLines.disabled=!running;
+     msg('Geometry v3 · OpenCV pripravljen ✓',running?'Kamera deluje. Izberi »Označi 4 točke«.':'Pritisni »Zaženi kamero«.');
+     return;
+   }
+   if(candidate&&typeof candidate.Mat==='function'&&typeof candidate.calcOpticalFlowPyrLK!=='function')
+     throw Error('OpenCV se je zagnal, vendar nima metode calcOpticalFlowPyrLK');
+   await delay(250);
   }
-  loaderBusy=false;bRetry.style.display='inline-block';
-  msg('OpenCV se ni naložil','Razlog: '+lastError+'. Pritisni »Ponovno naloži OpenCV«.');
+  throw Error('Inicializacija ni uspela (35 s). Module callback: '+runtimeDone+', cv: '+typeof window.cv);
+ }catch(e){
+  loaderBusy=false;
+  bRetry.style.display='inline-block';
+  msg('Geometry v3 · OpenCV napaka',String(e.message||e)+' · Poskusi »Ponovno naloži OpenCV« ali osveži stran.');
+  console.error('OpenCV loader v3',e);
+ }
 }
-bRetry.addEventListener('click',()=>loadCv());
+bRetry.addEventListener('click',()=>{if(!cvReady){ // Za ponovni poskus najprej čisto naložimo stran, da se različici knjižnice ne mešata.
+  const url=new URL(location.href);url.searchParams.set('cvtry',String(Number(url.searchParams.get('cvtry')||0)+1));
+  location.replace(url.href);
+}});
 window.addEventListener('load',()=>{resize();loadCv()});
 </script>
 </body>
