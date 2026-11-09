@@ -1,67 +1,72 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <title>Coil AR — tracking test</title>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Coil AR — tracking test v3</title>
   <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
   <style>
-    html,body { margin:0; width:100%; height:100%; overflow:hidden; background:#111; font-family:system-ui,sans-serif; }
-    #status { position:fixed; z-index:10; top:calc(env(safe-area-inset-top) + 14px); left:12px; right:12px; padding:12px 16px; border-radius:12px; background:rgba(0,0,0,.72); color:white; text-align:center; font-size:15px; pointer-events:none; }
-    #info { position:fixed; z-index:10; bottom:calc(env(safe-area-inset-bottom) + 16px); left:12px; right:12px; color:white; background:rgba(0,0,0,.65); border-radius:12px; padding:10px; text-align:center; font-size:13px; pointer-events:none; }
-    /* MindAR measures this scene to size the camera preview. */
-    a-scene { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100dvh !important; display: block !important; }
-    .a-enter-vr, .a-enter-ar { display:none !important; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #101010; font-family: system-ui, sans-serif; }
+    /* MindAR expects a full-page scene. Do not use A-Frame's `embedded` option. */
+    a-scene { position: fixed !important; inset: 0 !important; width: 100% !important; height: 100% !important; overflow: hidden !important; }
+    /* Fix camera positioning on devices where MindAR initially calculates a wrong viewport size. */
+    body > video, body > div > video, a-scene > video { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; object-fit: cover !important; margin: 0 !important; transform: none !important; }
+    .a-enter-vr, .a-enter-ar { display: none !important; }
+    #status, #info, #diag { position: fixed; z-index: 9999; left: 12px; right: 12px; color: white; text-align: center; border-radius: 12px; background: rgba(0,0,0,.76); pointer-events: none; }
+    #status { top: 12px; padding: 12px; font-size: 15px; }
+    #info { bottom: 42px; padding: 9px; font-size: 13px; }
+    #diag { bottom: 8px; padding: 5px; font-size: 11px; color: #c5e7ff; }
   </style>
 </head>
 <body>
-  <div id="status" role="status" aria-live="polite">Starting camera… please allow access.</div>
-  <div id="info">v2: Aim at wood. Red = X, green = Y, blue = outward Z.</div>
+  <div id="status" role="status">v3: Starting camera…</div>
+  <div id="info">Aim at wood. Red X · green Y · blue Z</div>
+  <div id="diag">Screen / camera diagnostics starting…</div>
   <a-scene
-    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: yes; uiScanning: no; uiError: yes; filterMinCF: 0.0001; filterBeta: 10;"
+    mindar-image="imageTargetSrc: ./targets.mind; autoStart: true; uiLoading: no; uiScanning: no; uiError: yes; filterMinCF: 0.0001; filterBeta: 10;"
     color-space="sRGB"
     renderer="colorManagement: true; antialias: true; alpha: true"
     vr-mode-ui="enabled: false"
-    device-orientation-permission-ui="enabled: false"
-    embedded>
+    device-orientation-permission-ui="enabled: false">
     <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
     <a-entity id="wood-target" mindar-image-target="targetIndex: 0">
-      <!-- The target coordinate system: center of the cropped photograph. -->
-      <!-- MindAR uses target width = 1; lengths here are relative to that width. -->
       <a-sphere position="0 0 0.015" radius="0.035" color="#ffffff"></a-sphere>
-      <!-- X axis (red), horizontal on the wood -->
       <a-cylinder position="0.22 0 0.025" radius="0.009" height="0.44" rotation="0 0 -90" color="#ff3636"></a-cylinder>
       <a-cone position="0.46 0 0.025" radius-bottom="0.025" radius-top="0" height="0.08" rotation="0 0 -90" color="#ff3636"></a-cone>
-      <!-- Y axis (green), vertical on the wood -->
       <a-cylinder position="0 0.22 0.025" radius="0.009" height="0.44" color="#41e66b"></a-cylinder>
       <a-cone position="0 0.46 0.025" radius-bottom="0.025" radius-top="0" height="0.08" color="#41e66b"></a-cone>
-      <!-- Z axis (blue), perpendicular out from wooden surface -->
       <a-cylinder position="0 0 0.24" radius="0.009" height="0.44" rotation="90 0 0" color="#4a9cff"></a-cylinder>
       <a-cone position="0 0 0.48" radius-bottom="0.025" radius-top="0" height="0.08" rotation="90 0 0" color="#4a9cff"></a-cone>
-      <!-- Small test object that should stay attached to the panel -->
       <a-box position="-0.20 -0.15 0.10" depth="0.17" height="0.17" width="0.17" color="#ffcf4b" material="opacity:0.9;transparent:true"></a-box>
     </a-entity>
   </a-scene>
   <script>
-    // Show easily understandable feedback during the first tracking test.
     const statusEl = document.querySelector('#status');
-    const targetEl = document.querySelector('#wood-target');
+    const diagEl = document.querySelector('#diag');
     const sceneEl = document.querySelector('a-scene');
-    targetEl.addEventListener('targetFound', () => {
-      statusEl.textContent = '✓ TRACKING — move your phone slowly';
-      statusEl.style.background = 'rgba(12,100,55,.84)';
+    document.querySelector('#wood-target').addEventListener('targetFound', () => {
+      statusEl.textContent = '✓ TRACKING — move phone slowly';
+      statusEl.style.background = 'rgba(12,100,55,.86)';
     });
-    targetEl.addEventListener('targetLost', () => {
-      statusEl.textContent = 'Target lost — aim at the wooden panel again';
-      statusEl.style.background = 'rgba(0,0,0,.72)';
+    document.querySelector('#wood-target').addEventListener('targetLost', () => {
+      statusEl.textContent = 'v3: Target lost — aim at wooden panel';
+      statusEl.style.background = 'rgba(0,0,0,.76)';
     });
-    sceneEl.addEventListener('arReady', () => {
-      statusEl.textContent = 'Camera ready — aim at the wooden panel (v2)';
-    });
-    sceneEl.addEventListener('arError', () => {
-      statusEl.textContent = 'Camera/tracking error. Check permission, HTTPS and targets.mind.';
-    });
+    sceneEl.addEventListener('arReady', () => { statusEl.textContent = 'v3: Camera ready — aim at wood'; updateDiagnostics(); });
+    sceneEl.addEventListener('arError', () => { statusEl.textContent = 'AR error: check targets.mind and camera access'; });
+    function updateDiagnostics() {
+      const v = [...document.querySelectorAll('video')].find(el => el.srcObject);
+      const c = sceneEl.querySelector('canvas');
+      const vr = v?.getBoundingClientRect();
+      const cr = c?.getBoundingClientRect();
+      const short = r => r ? `${Math.round(r.width)}×${Math.round(r.height)} @${Math.round(r.left)}` : 'none';
+      diagEl.textContent = `screen ${innerWidth}×${innerHeight} · video ${short(vr)} · canvas ${short(cr)}`;
+    }
+    window.addEventListener('resize', updateDiagnostics);
+    window.addEventListener('orientationchange', updateDiagnostics);
+    setInterval(updateDiagnostics, 2000);
   </script>
 </body>
 </html>
