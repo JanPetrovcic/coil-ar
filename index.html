@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#10151c">
-<title>Coil AR — geometrijsko sledenje v1</title>
+<title>Coil AR — geometrijsko sledenje v2</title>
 <style>
   :root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}
   *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080c10;color:white}
@@ -29,13 +29,14 @@
 <canvas id="overlay"></canvas>
 <div class="top">
  <div class="panel">
-  <div id="status">Nalagam OpenCV…</div>
+  <div id="status">Pripravljam OpenCV…</div>
   <div id="details">Začetek: kamera se odpre šele s pritiskom na gumb.</div>
   <div class="controls">
     <button id="start">Zaženi kamero</button>
     <button id="calibrate" class="secondary" disabled>Označi 4 točke</button>
     <button id="reset" class="secondary" disabled>Reset</button>
     <button id="lines" class="secondary" disabled>Prikaži črte</button>
+    <button id="retrycv" class="secondary" style="display:none">Ponovno naloži OpenCV</button>
   </div>
   <div id="guide"><img src="guide.jpg" alt="Primer točk na lesenem kosu"><span id="guideText">Označi 4 točke po vrsti.</span></div>
  </div>
@@ -52,7 +53,8 @@ const el=id=>document.getElementById(id);
 const video=el('camera'), overlay=el('overlay'), ctx=overlay.getContext('2d');
 const proc=el('processing'), pctx=proc.getContext('2d',{willReadFrequently:true});
 const status=el('status'), details=el('details'), instructions=el('instructions'), stats=el('stats');
-const bStart=el('start'), bCal=el('calibrate'), bReset=el('reset'), bLines=el('lines');
+const bStart=el('start'), bCal=el('calibrate'), bReset=el('reset'), bLines=el('lines'), bRetry=el('retrycv');
+let cvApi=null;
 let cvReady=false, stream=null, running=false, calibrating=false, tracking=false, showLines=false;
 let manual=[], frameCount=0, lastTick=0, fps=0, lastLines=[];
 let prevGray=null, features=[], sourceFeatures=[], initialH=null, currentH=null, lostFrames=0;
@@ -116,7 +118,7 @@ function drawAxes(Hm){
  }
  dot(p0,'#fff',5);
 }
-function matH(src,dst){let A=cv.matFromArray(4,1,cv.CV_32FC2,src.flat()),B=cv.matFromArray(4,1,cv.CV_32FC2,dst.flat());try{const h=cv.getPerspectiveTransform(A,B);const out=Array.from(h.data64F);h.delete();return out}finally{A.delete();B.delete()}}
+function matH(src,dst){let A=cvApi.matFromArray(4,1,cvApi.CV_32FC2,src.flat()),B=cvApi.matFromArray(4,1,cvApi.CV_32FC2,dst.flat());try{const h=cvApi.getPerspectiveTransform(A,B);const out=Array.from(h.data64F);h.delete();return out}finally{A.delete();B.delete()}}
 function stopTracking(reason=''){tracking=false;calibrating=false;manual=[];features=[];sourceFeatures=[];initialH=null;currentH=null;lostFrames=0;
  if(prevGray){prevGray.delete();prevGray=null}bCal.disabled=!running||!cvReady;bReset.disabled=!running;
  el('guide').style.display='none';if(reason)msg(reason);instructions.textContent='Pritisni »Označi 4 točke«, nato jih označi na lesenem kosu.';
@@ -128,12 +130,12 @@ function inPoly(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.le
 function beginTracking(){if(!paintVideo())return;let gray=null,rgba=null,corners=null,mask=null;
  try{
    initialH=matH(modelToImage,manual);currentH=initialH.slice();
-   rgba=cv.imread(proc);gray=new cv.Mat();cv.cvtColor(rgba,gray,cv.COLOR_RGBA2GRAY);
+   rgba=cvApi.imread(proc);gray=new cvApi.Mat();cvApi.cvtColor(rgba,gray,cvApi.COLOR_RGBA2GRAY);
    const imgPoly=modelPoly.map(p=>project(initialH,...p)).filter(Boolean);
-   mask=cv.Mat.zeros(H,W,cv.CV_8UC1);let mdata=mask.data;
+   mask=cvApi.Mat.zeros(H,W,cvApi.CV_8UC1);let mdata=mask.data;
    // ROI: samo leseni četrtkrog, brez ozadja in ravnila.
    for(let y=0;y<H;y+=1)for(let x=0;x<W;x+=1)if(inPoly(x,y,imgPoly))mdata[y*W+x]=255;
-   corners=new cv.Mat();cv.goodFeaturesToTrack(gray,corners,110,0.015,9,mask,4,false,0.04);
+   corners=new cvApi.Mat();cvApi.goodFeaturesToTrack(gray,corners,110,0.015,9,mask,4,false,0.04);
    features=[];for(let i=0;i<corners.rows;i++){let x=corners.data32F[2*i],y=corners.data32F[2*i+1];features.push([x,y])}
    // Sidrne točke dodamo, vendar je dober fit odvisen tudi od drugih značilnic.
    features.push(...manual.map(p=>p.slice()));sourceFeatures=features.map(p=>p.slice());
@@ -144,10 +146,10 @@ function beginTracking(){if(!paintVideo())return;let gray=null,rgba=null,corners
 }
 function processTracking(){if(!prevGray)return;let src=null,gray=null,p0=null,p1=null,st=null,err=null,M=null,inlierMask=null;
  try{
-   src=cv.imread(proc);gray=new cv.Mat();cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);
+   src=cvApi.imread(proc);gray=new cvApi.Mat();cvApi.cvtColor(src,gray,cvApi.COLOR_RGBA2GRAY);
    if(features.length<8){stopTracking('Izgubljeno sledenje — ponovno označi točke.');return}
-   p0=cv.matFromArray(features.length,1,cv.CV_32FC2,features.flat());p1=new cv.Mat();st=new cv.Mat();err=new cv.Mat();
-   cv.calcOpticalFlowPyrLK(prevGray,gray,p0,p1,st,err,new cv.Size(21,21),3,new cv.TermCriteria(cv.TermCriteria_COUNT+cv.TermCriteria_EPS,25,.03));
+   p0=cvApi.matFromArray(features.length,1,cvApi.CV_32FC2,features.flat());p1=new cvApi.Mat();st=new cvApi.Mat();err=new cvApi.Mat();
+   cvApi.calcOpticalFlowPyrLK(prevGray,gray,p0,p1,st,err,new cvApi.Size(21,21),3,new cvApi.TermCriteria(cvApi.TermCriteria_COUNT+cvApi.TermCriteria_EPS,25,.03));
    let oldNext=[],newNext=[],newSource=[];
    for(let i=0;i<features.length;i++)if(st.data[i]){
      const x=p1.data32F[2*i],y=p1.data32F[2*i+1];
@@ -155,8 +157,8 @@ function processTracking(){if(!prevGray)return;let src=null,gray=null,p0=null,p1
    }
    // Gibanje določimo z robustno homografijo iz točk na LESENI površini.
    if(newNext.length>=8){
-     let a=cv.matFromArray(newSource.length,1,cv.CV_32FC2,newSource.flat());let b=cv.matFromArray(newNext.length,1,cv.CV_32FC2,newNext.flat());
-     try{inlierMask=new cv.Mat();M=cv.findHomography(a,b,cv.RANSAC,3,inlierMask);
+     let a=cvApi.matFromArray(newSource.length,1,cvApi.CV_32FC2,newSource.flat());let b=cvApi.matFromArray(newNext.length,1,cvApi.CV_32FC2,newNext.flat());
+     try{inlierMask=new cvApi.Mat();M=cvApi.findHomography(a,b,cvApi.RANSAC,3,inlierMask);
        if(M && !M.empty()){
          let valid=0,goodNew=[],goodSource=[];
          for(let i=0;i<newNext.length;i++)if(inlierMask.data[i]){valid++;goodNew.push(newNext[i]);goodSource.push(newSource[i])}
@@ -171,9 +173,9 @@ function processTracking(){if(!prevGray)return;let src=null,gray=null,p0=null,p1
  }catch(e){console.error(e);stopTracking('Napaka sledenja: '+e.message)}finally{for(const x of [src,gray,p0,p1,st,err,M,inlierMask])if(x)try{x.delete()}catch{}}
 }
 function detectLines(){let src=null,g=null,blur=null,edge=null,lines=null;try{
- src=cv.imread(proc);g=new cv.Mat();blur=new cv.Mat();edge=new cv.Mat();lines=new cv.Mat();
- cv.cvtColor(src,g,cv.COLOR_RGBA2GRAY);cv.GaussianBlur(g,blur,new cv.Size(5,5),0);
- cv.Canny(blur,edge,65,145);cv.HoughLinesP(edge,lines,1,Math.PI/180,35,Math.max(35,Math.round(W*.14)),14);
+ src=cvApi.imread(proc);g=new cvApi.Mat();blur=new cvApi.Mat();edge=new cvApi.Mat();lines=new cvApi.Mat();
+ cvApi.cvtColor(src,g,cvApi.COLOR_RGBA2GRAY);cvApi.GaussianBlur(g,blur,new cvApi.Size(5,5),0);
+ cvApi.Canny(blur,edge,65,145);cvApi.HoughLinesP(edge,lines,1,Math.PI/180,35,Math.max(35,Math.round(W*.14)),14);
  let items=[];for(let i=0;i<lines.rows;i++){const a=Array.from(lines.data32S.slice(i*4,i*4+4));items.push(a)}
  lastLines=items.sort((a,b)=>Math.hypot(b[2]-b[0],b[3]-b[1])-Math.hypot(a[2]-a[0],a[3]-a[1])).slice(0,32);
  }catch(e){console.warn('Detektor črt:',e)}finally{for(const m of [src,g,blur,edge,lines])if(m)m.delete()}}
@@ -193,7 +195,7 @@ async function start(){if(running)return;bStart.disabled=true;msg('Zaganjam kame
  stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
  video.srcObject=stream;await video.play();running=true;resize();bCal.disabled=!cvReady;bReset.disabled=false;bLines.disabled=!cvReady;
  bStart.textContent='Ustavi kamero';bStart.disabled=false;
- msg('Kamera deluje ✓',cvReady?'Označi 4 točke za sledenje.':'OpenCV se še nalaga…');
+ if(cvReady)msg('Kamera deluje ✓','Označi 4 točke za sledenje.');
  requestAnimationFrame(tick);
  }catch(e){bStart.disabled=false;msg('Napaka kamere: '+e.name,e.message||'');}}
 function stop(){running=false;stopTracking();if(stream){stream.getTracks().forEach(x=>x.stop());stream=null}video.pause();video.srcObject=null;bStart.textContent='Zaženi kamero';bStart.disabled=false;bCal.disabled=bLines.disabled=bReset.disabled=true;msg('Kamera ustavljena');ctx.clearRect(0,0,overlay.clientWidth,overlay.clientHeight)}
@@ -202,15 +204,64 @@ bLines.addEventListener('click',()=>{showLines=!showLines;bLines.textContent=sho
 overlay.addEventListener('pointerdown',e=>{if(!calibrating)return;e.preventDefault();manual.push(coord(e));if(manual.length===4)beginTracking();else nextInstruction()});
 window.addEventListener('resize',()=>{if(running)resize()});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)stop()});
-async function onCV(){try{
- let value=window.cv; if(!value)throw Error('OpenCV ni na voljo');cvReady=!!value.Mat;
- if(!cvReady&&typeof value.then==='function'){window.cv=await value;cvReady=true}
- if(!cvReady){await new Promise((resolve,reject)=>{let started=Date.now();const id=setInterval(()=>{if(window.cv?.Mat){clearInterval(id);resolve()}else if(Date.now()-started>16000){clearInterval(id);reject(Error('timeout'))}},100)});cvReady=true}
- bCal.disabled=!running;bLines.disabled=!running;msg(running?'Kamera deluje ✓':'Pripravljeno','OpenCV naložen. Začni s kamero in izberi 4 točke.');
- }catch(e){msg('OpenCV se ni naložil',e.message)}}
-window.onOpenCvReady=onCV;
-window.addEventListener('load',()=>{resize();setTimeout(()=>{if(!cvReady)msg('Čakam na OpenCV…','Potreben je internet za prvi prenos knjižnice.')},2500)});
+// Različne izdaje OpenCV.js javijo pripravljenost različno: globalni cv,
+// Promise ali onRuntimeInitialized. Skript se lahko prenese, preden je WASM pripravljen.
+// Zato nalaganje nadziramo ločeno od dogodka <script onload>.
+let loaderBusy=false;
+const cvSources=[
+ 'https://docs.opencv.org/4.x/opencv.js',
+ 'https://docs.opencv.org/4.10.0/opencv.js'
+];
+function wait(ms){return new Promise(resolve=>setTimeout(resolve,ms))}
+function withTimeout(p,ms,label){return Promise.race([p,new Promise((_,reject)=>setTimeout(()=>reject(new Error(label)),ms))])}
+async function initializeCv(source){
+  // Počakamo na cvApi.Mat, ne le na dogodek 'load'.
+  for(let i=0;i<160;i++){
+    let obj=window.cv;
+    if(obj){
+      if(typeof obj.then==='function'){
+        const resolved=await withTimeout(Promise.resolve(obj),28000,'WASM ni pripravljen');
+        if(resolved)window.cv=resolved;
+        obj=window.cv;
+      }
+      if(obj&&typeof obj.Mat==='function'&&typeof obj.calcOpticalFlowPyrLK==='function')return obj;
+    }
+    await wait(200);
+  }
+  throw new Error('Knjižnica se ni inicializirala');
+}
+function injectScript(url){
+  return new Promise((resolve,reject)=>{
+    const tag=document.createElement('script');tag.src=url;tag.async=true;
+    tag.onload=()=>resolve();tag.onerror=()=>reject(new Error('Prenos spodletel: '+url));
+    document.body.appendChild(tag);
+  });
+}
+async function loadCv(){
+  if(loaderBusy||cvReady)return;
+  loaderBusy=true;bRetry.style.display='none';
+  let lastError='';
+  for(let i=0;i<cvSources.length;i++){
+    try{
+      msg(`Nalagam OpenCV (${i+1}/${cvSources.length})…`,'Prenos in zagon knjižnice. Kamera se lahko zažene že zdaj.');
+      await withTimeout(injectScript(cvSources[i]),24000,'Prenos traja predolgo');
+      msg('Inicializiram OpenCV…','Knjižnica je prenesena, čakam na WASM.');
+      cvApi=await initializeCv(cvSources[i]);
+      const test=new cvApi.Mat(2,2,cvApi.CV_8UC1);test.delete();
+      cvReady=true;bCal.disabled=!running;bLines.disabled=!running;
+      msg(running?'Kamera deluje ✓':'Pripravljeno ✓','OpenCV naložen. Začni s kamero in izberi 4 točke.');
+      bRetry.style.display='none';loaderBusy=false;return;
+    }catch(err){
+      lastError=String(err?.message||err);console.error('OpenCV loader',err);
+      // Ob napaki inicializacije ne smemo ponovno uporabiti nedokončanega Promise.
+      if(window.cv&&typeof window.cv.then==='function')try{delete window.cv}catch{}
+    }
+  }
+  loaderBusy=false;bRetry.style.display='inline-block';
+  msg('OpenCV se ni naložil','Razlog: '+lastError+'. Pritisni »Ponovno naloži OpenCV«.');
+}
+bRetry.addEventListener('click',()=>loadCv());
+window.addEventListener('load',()=>{resize();loadCv()});
 </script>
-<script async src="https://docs.opencv.org/4.x/opencv.js" onload="onOpenCvReady()" onerror="document.getElementById('status').textContent='OpenCV ni dosegljiv — preveri internet';"></script>
 </body>
 </html>
