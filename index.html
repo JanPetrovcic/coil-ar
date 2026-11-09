@@ -1,265 +1,47 @@
 <!doctype html>
-<html lang="sl">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#10151c">
-<title>Coil AR — geometrijsko sledenje v3</title>
+<html lang="sl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#111827"><title>Coil AR — Geometry v4 (brez OpenCV)</title>
 <style>
-  :root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif}
-  *{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#080c10;color:white}
-  #camera,#overlay{position:fixed;inset:0;width:100%;height:100%;display:block}
-  #camera{object-fit:cover;background:#111;z-index:1}#overlay{z-index:2;touch-action:none}
-  .top{position:fixed;left:10px;right:10px;top:calc(env(safe-area-inset-top) + 10px);z-index:4;pointer-events:none}
-  .panel{background:rgba(6,11,18,.83);border:1px solid #ffffff28;border-radius:13px;padding:10px 12px;backdrop-filter:blur(8px);box-shadow:0 2px 16px #0006}
-  #status{font-weight:650;font-size:14px;line-height:1.4}#details{font-size:12px;color:#c9d7e8;margin-top:4px}
-  .controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:9px;pointer-events:auto}
-  button{appearance:none;border:0;border-radius:10px;background:#cfe6ff;color:#102332;padding:11px 12px;font-size:14px;font-weight:700;cursor:pointer;min-height:42px}
-  button.secondary{background:#ffffff25;color:#fff;border:1px solid #ffffff40}button:disabled{opacity:.46;cursor:not-allowed}
-  .bottom{position:fixed;bottom:calc(env(safe-area-inset-bottom) + 16px);left:10px;right:10px;z-index:4;pointer-events:none}
-  #instructions{font-size:13px;line-height:1.35}#stats{font-size:11px;color:#c1d2df;margin-top:5px}
-  .chip{display:inline-block;padding:2px 6px;border-radius:6px;background:#ffffff22;color:#eaf5ff}
-  #guide{max-width:100%;display:none;align-items:center;gap:10px;margin-top:9px;pointer-events:auto}
-  #guide img{height:68px;max-width:95px;object-fit:contain;border-radius:5px;background:#fff}
-  #guide span{font-size:12px;color:#e2e8f2}
-</style>
-</head>
-<body>
-<video id="camera" autoplay muted playsinline webkit-playsinline></video>
-<canvas id="overlay"></canvas>
-<div class="top">
- <div class="panel">
-  <div id="status">Geometry v3 · pripravljam OpenCV…</div>
-  <div id="details">Začetek: kamera se odpre šele s pritiskom na gumb.</div>
-  <div class="controls">
-    <button id="start">Zaženi kamero</button>
-    <button id="calibrate" class="secondary" disabled>Označi 4 točke</button>
-    <button id="reset" class="secondary" disabled>Reset</button>
-    <button id="lines" class="secondary" disabled>Prikaži črte</button>
-    <button id="retrycv" class="secondary" style="display:none">Ponovno naloži OpenCV</button>
-  </div>
-  <div id="guide"><img src="guide.jpg" alt="Primer točk na lesenem kosu"><span id="guideText">Označi 4 točke po vrsti.</span></div>
- </div>
-</div>
-<div class="bottom"><div class="panel">
- <div id="instructions">1. Zaženi kamero. 2. Celoten leseni četrtkrog naj bo v kadru. 3. Označi štiri točke.</div>
- <div id="stats">Brez markerja · OpenCV.js · ročna začetna kalibracija</div>
-</div></div>
-<canvas id="processing" style="display:none"></canvas>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0a0e14;color:white;font-family:system-ui,Arial,sans-serif}video,canvas{position:fixed;inset:0;width:100%;height:100%;display:block}#camera{z-index:1;object-fit:cover;background:#111}#overlay{z-index:2;touch-action:none}.top,.bottom{position:fixed;left:10px;right:10px;z-index:5;pointer-events:none}.top{top:calc(10px + env(safe-area-inset-top))}.bottom{bottom:calc(12px + env(safe-area-inset-bottom))}.panel{background:rgba(4,10,20,.87);border:1px solid #ffffff35;border-radius:14px;padding:10px 12px;backdrop-filter:blur(5px)}#status{font-size:17px;font-weight:700}#detail{font-size:13px;color:#c9d9e9;margin-top:4px}.buttons{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px;pointer-events:auto}button{border:none;border-radius:9px;padding:10px 13px;min-height:42px;background:#d1e8ff;color:#09263d;font:700 14px system-ui}button:disabled{opacity:.45}.secondary{background:#2b3a50;color:#fff}.bottom{font-size:12px}#stats{margin-top:5px;color:#a9c5dc}#guide{display:none;margin-top:8px;font-size:13px;color:#f5dfa0}
+</style></head><body>
+<video id="camera" autoplay muted playsinline webkit-playsinline></video><canvas id="overlay"></canvas><canvas id="proc" hidden></canvas>
+<div class="top"><div class="panel"><div id="status">Geometry v4 — pripravljeno ✓</div><div id="detail">Brez OpenCV/WASM. Najprej zaženi kamero.</div><div class="buttons"><button id="start">Zaženi kamero</button><button id="cal" class="secondary" disabled>Označi 4 točke</button><button id="reset" class="secondary" disabled>Ponastavi</button></div><div id="guide">Tapni točke na LESENEM KOSU v vrstnem redu: 1. spodnji levi kot, 2. spodnja črta na loku, 3. srednja črta na loku, 4. zgornja črta na loku.</div></div></div>
+<div class="bottom"><div class="panel"><div id="instruction">Po zagonu kamere pritisni »Označi 4 točke«.</div><div id="stats">Kamera: izklopljena · Sledenje: izklopljeno</div></div></div>
 <script>
 'use strict';
-// Vse koordinate so v procesni sliki; začetna kalibracija je enaka za vse kose.
-const el=id=>document.getElementById(id);
-const video=el('camera'), overlay=el('overlay'), ctx=overlay.getContext('2d');
-const proc=el('processing'), pctx=proc.getContext('2d',{willReadFrequently:true});
-const status=el('status'), details=el('details'), instructions=el('instructions'), stats=el('stats');
-const bStart=el('start'), bCal=el('calibrate'), bReset=el('reset'), bLines=el('lines'), bRetry=el('retrycv');
-let cvApi=null;
-let cvReady=false, stream=null, running=false, calibrating=false, tracking=false, showLines=false;
-let manual=[], frameCount=0, lastTick=0, fps=0, lastLines=[];
-let prevGray=null, features=[], sourceFeatures=[], initialH=null, currentH=null, lostFrames=0;
-let W=360,H=640, scaleFactor=1, lastTs=0;
-const R=150; // nominalni polmer v mm; prilagodimo po izmeri.
-// 1: spodnji levi kot; 2/3/4: presečišče spodnje/srednje/zgornje črne črte z lokom.
-// Koti so ZAČASNE ocene na podlagi uporabnikove fotografije.
-const alpha=[21,51,76].map(a=>a*Math.PI/180);
-const model=[[0,0], ...alpha.map(a=>[R*(1-Math.cos(a)),R*Math.sin(a)])];
-const modelToImage=model.map(([x,y])=>[x,-y]);
-const modelPoly=(()=>{let p=[[0,0]];for(let a=0;a<=90;a+=3){let t=a*Math.PI/180;p.push([R*(1-Math.cos(t)),-R*Math.sin(t)])}p.push([R,0]);return p})();
-function msg(s,d=''){status.textContent=s;details.textContent=d}
-function setStats(t){stats.textContent=t}
-function resize(){
- const rect=overlay.getBoundingClientRect(); const dw=Math.max(1,Math.round(rect.width*devicePixelRatio));const dh=Math.max(1,Math.round(rect.height*devicePixelRatio));
- overlay.width=dw;overlay.height=dh;ctx.setTransform(dw/rect.width,0,0,dh/rect.height,0,0);
- // Analiza v enakem razmerju kot video, prikazan z object-fit:cover.
- scaleFactor=Math.min(1,420/rect.width);W=Math.round(rect.width*scaleFactor);H=Math.round(rect.height*scaleFactor);
- proc.width=W;proc.height=H;
- if(tracking){stopTracking('Spremenjena orientacija zaslona — ponovno označi točke.')}
-}
-function coord(e){const r=overlay.getBoundingClientRect();return [(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]}
-function paintVideo(){
- const vw=video.videoWidth,vh=video.videoHeight;if(!vw||!vh)return false;
- const factor=Math.max(W/vw,H/vh);const cropW=W/factor,cropH=H/factor;
- pctx.drawImage(video,(vw-cropW)/2,(vh-cropH)/2,cropW,cropH,0,0,W,H);return true;
-}
-function P(p){const r=overlay.getBoundingClientRect();return [p[0]*r.width/W,p[1]*r.height/H]}
-function dot(p,color='#ffe24d',radius=6,caption=''){
- let [x,y]=P(p);ctx.beginPath();ctx.arc(x,y,radius,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.lineWidth=2;ctx.strokeStyle='#07101f';ctx.stroke();
- if(caption){ctx.font='bold 14px system-ui';ctx.fillStyle='#fff';ctx.strokeStyle='#08101a';ctx.lineWidth=4;ctx.strokeText(caption,x+10,y-8);ctx.fillText(caption,x+10,y-8)}
-}
-function line(a,b,color,width=2){let A=P(a),B=P(b);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.stroke()}
-function project(Hm,x,y){if(!Hm)return null;const d=Hm[6]*x+Hm[7]*y+Hm[8];if(Math.abs(d)<1e-9)return null;return [(Hm[0]*x+Hm[1]*y+Hm[2])/d,(Hm[3]*x+Hm[4]*y+Hm[5])/d]}
-function mul(A,B){let O=new Array(9).fill(0);for(let i=0;i<3;i++)for(let j=0;j<3;j++)for(let k=0;k<3;k++)O[3*i+j]+=A[3*i+k]*B[3*k+j];return O}
-function normalize(a){let n=Math.hypot(...a);return a.map(x=>x/(n||1))}
-function cross(a,b){return [a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]}
-function drawAxes(Hm){
- if(!Hm)return;
- // Obliko četrtkroga in radialne črte računamo iz geometrije, ne teksture lesa.
- let path=modelPoly.map(p=>project(Hm,...p));if(path.every(Boolean)){
-   for(let i=1;i<path.length;i++)line(path[i-1],path[i],'#76ffe4',2);
- }
- const O=project(Hm,R,0);if(!O)return;
- for(let i=0;i<3;i++){const pt=project(Hm,...modelToImage[i+1]);if(pt)line(O,pt,'#fff5',1)}
- // Kamera K (približek): dejanska notranja kalibracija še ni izmerjena.
- let f=Math.max(W,H)*1.25, cx=W/2,cy=H/2;
- let h1=[Hm[0],Hm[3],Hm[6]],h2=[Hm[1],Hm[4],Hm[7]],h3=[Hm[2],Hm[5],Hm[8]];
- let ik=v=>[(v[0]-cx*v[2])/f,(v[1]-cy*v[2])/f,v[2]];
- let a=ik(h1),b=ik(h2),t=ik(h3);let len=(Math.hypot(...a)+Math.hypot(...b))/2;if(len<1e-9)return;
- a=a.map(v=>v/len); b=b.map(v=>v/len);t=t.map(v=>v/len);
- let r1=normalize(a), r2=normalize(b.map((v,i)=>v-r1[i]*b.reduce((s,w,j)=>s+w*r1[j],0)));
- let r3=normalize(cross(r1,r2));
- // Normalni Z je navzven iz površine, a orientacija je ocenjena, ne kalibrirana.
- function p3(x,y,z){const v=[x,y,z];const out=[0,1,2].map(j=>t[j]+r1[j]*v[0]+r2[j]*v[1]+r3[j]*v[2]);if(out[2]<=1e-4)return null;return [f*out[0]/out[2]+cx,f*out[1]/out[2]+cy]}
- // Ker je model Y navzgor, je za izračun iz slike njegov predznak obrnjen.
- const size=R*.37, p0=p3(R,0,0), px=p3(R-size,0,0),py=p3(R,-size,0),pz=p3(R,0,size);
- if(!p0)return;
- for(const [q,c,label] of [[px,'#ff5353','X'],[py,'#4cff73','Y'],[pz,'#52a9ff','Z']]){
-   if(!q)continue;line(p0,q,c,5);dot(q,c,4,label);
- }
- dot(p0,'#fff',5);
-}
-function matH(src,dst){let A=cvApi.matFromArray(4,1,cvApi.CV_32FC2,src.flat()),B=cvApi.matFromArray(4,1,cvApi.CV_32FC2,dst.flat());try{const h=cvApi.getPerspectiveTransform(A,B);const out=Array.from(h.data64F);h.delete();return out}finally{A.delete();B.delete()}}
-function stopTracking(reason=''){tracking=false;calibrating=false;manual=[];features=[];sourceFeatures=[];initialH=null;currentH=null;lostFrames=0;
- if(prevGray){prevGray.delete();prevGray=null}bCal.disabled=!running||!cvReady;bReset.disabled=!running;
- el('guide').style.display='none';if(reason)msg(reason);instructions.textContent='Pritisni »Označi 4 točke«, nato jih označi na lesenem kosu.';
-}
-function calibrate(){if(!running||!cvReady)return;stopTracking();calibrating=true;bCal.disabled=true;el('guide').style.display='flex';nextInstruction()}
-const names=['spodnji levi kot lesa','spodnji stik radialne črte z lokom','srednji stik radialne črte z lokom','zgornji stik radialne črte z lokom'];
-function nextInstruction(){let n=manual.length;if(n<4){msg(`Označi točko ${n+1}/4`,names[n]);instructions.textContent=`Tapni: ${names[n]}. Pri izbiri se ne premikaj.`;el('guideText').textContent=`${n+1}/4: ${names[n]}`}}
-function inPoly(x,y,poly){let inside=false;for(let i=0,j=poly.length-1;i<poly.length;j=i++){const a=poly[i],b=poly[j];if(((a[1]>y)!=(b[1]>y))&&(x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]))inside=!inside}return inside}
-function beginTracking(){if(!paintVideo())return;let gray=null,rgba=null,corners=null,mask=null;
- try{
-   initialH=matH(modelToImage,manual);currentH=initialH.slice();
-   rgba=cvApi.imread(proc);gray=new cvApi.Mat();cvApi.cvtColor(rgba,gray,cvApi.COLOR_RGBA2GRAY);
-   const imgPoly=modelPoly.map(p=>project(initialH,...p)).filter(Boolean);
-   mask=cvApi.Mat.zeros(H,W,cvApi.CV_8UC1);let mdata=mask.data;
-   // ROI: samo leseni četrtkrog, brez ozadja in ravnila.
-   for(let y=0;y<H;y+=1)for(let x=0;x<W;x+=1)if(inPoly(x,y,imgPoly))mdata[y*W+x]=255;
-   corners=new cvApi.Mat();cvApi.goodFeaturesToTrack(gray,corners,110,0.015,9,mask,4,false,0.04);
-   features=[];for(let i=0;i<corners.rows;i++){let x=corners.data32F[2*i],y=corners.data32F[2*i+1];features.push([x,y])}
-   // Sidrne točke dodamo, vendar je dober fit odvisen tudi od drugih značilnic.
-   features.push(...manual.map(p=>p.slice()));sourceFeatures=features.map(p=>p.slice());
-   if(features.length<8){msg('Premalo zaznanih točk','Poskusi boljšo osvetlitev ali bližje fotografiranje.');tracking=false;return}
-   prevGray=gray;gray=null;tracking=true;calibrating=false;bCal.disabled=false;
-   el('guide').style.display='none';msg('Sledenje vključeno','Premikaj telefon počasi; osi so približek.');instructions.textContent='Turkizna = geometrija lesa · Rdeča/zelena/modra = približne osi. Če sledenje izgine, pritisni Reset.';
- }catch(e){console.error(e);stopTracking('Napaka kalibracije: '+e.message)}finally{if(gray)gray.delete();if(rgba)rgba.delete();if(corners)corners.delete();if(mask)mask.delete()}
-}
-function processTracking(){if(!prevGray)return;let src=null,gray=null,p0=null,p1=null,st=null,err=null,M=null,inlierMask=null;
- try{
-   src=cvApi.imread(proc);gray=new cvApi.Mat();cvApi.cvtColor(src,gray,cvApi.COLOR_RGBA2GRAY);
-   if(features.length<8){stopTracking('Izgubljeno sledenje — ponovno označi točke.');return}
-   p0=cvApi.matFromArray(features.length,1,cvApi.CV_32FC2,features.flat());p1=new cvApi.Mat();st=new cvApi.Mat();err=new cvApi.Mat();
-   cvApi.calcOpticalFlowPyrLK(prevGray,gray,p0,p1,st,err,new cvApi.Size(21,21),3,new cvApi.TermCriteria(cvApi.TermCriteria_COUNT+cvApi.TermCriteria_EPS,25,.03));
-   let oldNext=[],newNext=[],newSource=[];
-   for(let i=0;i<features.length;i++)if(st.data[i]){
-     const x=p1.data32F[2*i],y=p1.data32F[2*i+1];
-     if(Number.isFinite(x)&&Number.isFinite(y)&&x>2&&y>2&&x<W-2&&y<H-2){oldNext.push(features[i]);newNext.push([x,y]);newSource.push(sourceFeatures[i])}
-   }
-   // Gibanje določimo z robustno homografijo iz točk na LESENI površini.
-   if(newNext.length>=8){
-     let a=cvApi.matFromArray(newSource.length,1,cvApi.CV_32FC2,newSource.flat());let b=cvApi.matFromArray(newNext.length,1,cvApi.CV_32FC2,newNext.flat());
-     try{inlierMask=new cvApi.Mat();M=cvApi.findHomography(a,b,cvApi.RANSAC,3,inlierMask);
-       if(M && !M.empty()){
-         let valid=0,goodNew=[],goodSource=[];
-         for(let i=0;i<newNext.length;i++)if(inlierMask.data[i]){valid++;goodNew.push(newNext[i]);goodSource.push(newSource[i])}
-         if(valid>=7){features=goodNew;sourceFeatures=goodSource;currentH=mul(Array.from(M.data64F),initialH);lostFrames=0;
-           msg('SLEDENJE ✓',`${valid} stabilnih točk · premikaj telefon počasi`);
-         }else lostFrames++;
-       }else lostFrames++;
-     }finally{a.delete();b.delete()}
-   }else lostFrames++;
-   if(lostFrames>7){stopTracking('Sledenje izgubljeno — ponovi 4 točke.');return}
-   prevGray.delete();prevGray=gray;gray=null;
- }catch(e){console.error(e);stopTracking('Napaka sledenja: '+e.message)}finally{for(const x of [src,gray,p0,p1,st,err,M,inlierMask])if(x)try{x.delete()}catch{}}
-}
-function detectLines(){let src=null,g=null,blur=null,edge=null,lines=null;try{
- src=cvApi.imread(proc);g=new cvApi.Mat();blur=new cvApi.Mat();edge=new cvApi.Mat();lines=new cvApi.Mat();
- cvApi.cvtColor(src,g,cvApi.COLOR_RGBA2GRAY);cvApi.GaussianBlur(g,blur,new cvApi.Size(5,5),0);
- cvApi.Canny(blur,edge,65,145);cvApi.HoughLinesP(edge,lines,1,Math.PI/180,35,Math.max(35,Math.round(W*.14)),14);
- let items=[];for(let i=0;i<lines.rows;i++){const a=Array.from(lines.data32S.slice(i*4,i*4+4));items.push(a)}
- lastLines=items.sort((a,b)=>Math.hypot(b[2]-b[0],b[3]-b[1])-Math.hypot(a[2]-a[0],a[3]-a[1])).slice(0,32);
- }catch(e){console.warn('Detektor črt:',e)}finally{for(const m of [src,g,blur,edge,lines])if(m)m.delete()}}
-function render(){ctx.clearRect(0,0,overlay.clientWidth,overlay.clientHeight);
- if(showLines){for(const [x1,y1,x2,y2] of lastLines)line([x1,y1],[x2,y2],'#e3ff3b',1.4)}
- if(calibrating){manual.forEach((p,i)=>dot(p,'#fff04a',7,String(i+1)))}
- if(tracking&&currentH){drawAxes(currentH);if(frameCount%4===0){for(let i=0;i<Math.min(features.length,75);i++)dot(features[i],'#ffdf3c',1.7)}}
-}
-function tick(t){if(!running)return;requestAnimationFrame(tick);if(t-lastTs<65)return;lastTs=t;
- if(video.readyState<2)return;
- if(!paintVideo())return;
- if(cvReady){if(tracking)processTracking();if(showLines&&frameCount%7===0)detectLines()}
- render();frameCount++;
- if(frameCount%10===0){let now=performance.now();fps=lastTick?Math.round(10000/(now-lastTick)):0;lastTick=now;setStats(`${W}×${H} · video ${video.videoWidth}×${video.videoHeight} · ~${fps} sl/s · točk ${features.length} · črt ${showLines?lastLines.length:'izklop'}`)}
-}
-async function start(){if(running)return;bStart.disabled=true;msg('Zaganjam kamero…');try{
- stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});
- video.srcObject=stream;await video.play();running=true;resize();bCal.disabled=!cvReady;bReset.disabled=false;bLines.disabled=!cvReady;
- bStart.textContent='Ustavi kamero';bStart.disabled=false;
- if(cvReady)msg('Geometry v3 · Kamera deluje ✓','Označi 4 točke za sledenje.');
- requestAnimationFrame(tick);
- }catch(e){bStart.disabled=false;msg('Napaka kamere: '+e.name,e.message||'');}}
-function stop(){running=false;stopTracking();if(stream){stream.getTracks().forEach(x=>x.stop());stream=null}video.pause();video.srcObject=null;bStart.textContent='Zaženi kamero';bStart.disabled=false;bCal.disabled=bLines.disabled=bReset.disabled=true;msg('Kamera ustavljena');ctx.clearRect(0,0,overlay.clientWidth,overlay.clientHeight)}
-bStart.addEventListener('click',()=>running?stop():start());bCal.addEventListener('click',calibrate);bReset.addEventListener('click',()=>stopTracking('Ponastavljeno — označi 4 točke.'));
-bLines.addEventListener('click',()=>{showLines=!showLines;bLines.textContent=showLines?'Skrij črte':'Prikaži črte';lastLines=[]});
-overlay.addEventListener('pointerdown',e=>{if(!calibrating)return;e.preventDefault();manual.push(coord(e));if(manual.length===4)beginTracking();else nextInstruction()});
-window.addEventListener('resize',()=>{if(running)resize()});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)stop()});
-// Različice OpenCV.js lahko vrnejo Promise ali uporabljajo Module callback.
-// V3: omejen čas zagona, preverjanje dejanskih metod in natančnejša diagnostika.
-const cvSources=['https://docs.opencv.org/4.10.0/opencv.js','https://docs.opencv.org/4.x/opencv.js'];
-let loaderBusy=false, cvAttempt=0, cvTimer=null;
-const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
-function hasCvApi(c){return c && typeof c.Mat==='function' && typeof c.calcOpticalFlowPyrLK==='function' && typeof c.findHomography==='function';}
-function scriptLoad(src){return new Promise((resolve,reject)=>{
-  const tag=document.createElement('script'); tag.async=true; tag.src=src;
-  tag.onload=()=>resolve();tag.onerror=()=>reject(new Error('Prenos OpenCV.js ni uspel'));
-  document.head.appendChild(tag);
-});}
-async function loadCv(){
- if(loaderBusy||cvReady)return;
- loaderBusy=true;bRetry.style.display='none';cvAttempt++;
- // Zamenjava vira po ponovnem poskusu: ne nalagamo obeh izdaj sočasno.
- const source=cvSources[(Number(new URL(location.href).searchParams.get('cvtry')||0)+cvAttempt-1)%cvSources.length];
- msg('Geometry v3 · nalagam OpenCV…',source);
- let runtimeDone=false;
- window.Module={onRuntimeInitialized(){runtimeDone=true;}};
- const timeoutMs=35000;
- try{
-  await Promise.race([scriptLoad(source),delay(20000).then(()=>{throw Error('Časovna omejitev prenosa (20 s)')})]);
-  msg('Geometry v3 · inicializiram WASM…','JavaScript je prenesen. Preverjam cv.Mat in metode sledenja.');
-  const deadline=Date.now()+timeoutMs;
-  while(Date.now()<deadline){
-   let candidate=window.cv;
-   if(candidate&&typeof candidate.then==='function'){
-     // Če je cv Promise, ga je treba razrešiti (uradni OpenCV postopek).
-     const remain=Math.max(100,deadline-Date.now());
-     candidate=await Promise.race([Promise.resolve(candidate),delay(remain).then(()=>{throw Error('WASM Promise se ni zaključil')})]);
-     if(candidate)window.cv=candidate;
-   }
-   if(hasCvApi(candidate)){
-     const m=new candidate.Mat(2,2,candidate.CV_8UC1);m.delete();
-     cvApi=candidate;cvReady=true;loaderBusy=false;
-     bCal.disabled=!running;bLines.disabled=!running;
-     msg('Geometry v3 · OpenCV pripravljen ✓',running?'Kamera deluje. Izberi »Označi 4 točke«.':'Pritisni »Zaženi kamero«.');
-     return;
-   }
-   if(candidate&&typeof candidate.Mat==='function'&&typeof candidate.calcOpticalFlowPyrLK!=='function')
-     throw Error('OpenCV se je zagnal, vendar nima metode calcOpticalFlowPyrLK');
-   await delay(250);
-  }
-  throw Error('Inicializacija ni uspela (35 s). Module callback: '+runtimeDone+', cv: '+typeof window.cv);
- }catch(e){
-  loaderBusy=false;
-  bRetry.style.display='inline-block';
-  msg('Geometry v3 · OpenCV napaka',String(e.message||e)+' · Poskusi »Ponovno naloži OpenCV« ali osveži stran.');
-  console.error('OpenCV loader v3',e);
- }
-}
-bRetry.addEventListener('click',()=>{if(!cvReady){ // Za ponovni poskus najprej čisto naložimo stran, da se različici knjižnice ne mešata.
-  const url=new URL(location.href);url.searchParams.set('cvtry',String(Number(url.searchParams.get('cvtry')||0)+1));
-  location.replace(url.href);
-}});
-window.addEventListener('load',()=>{resize();loadCv()});
-</script>
-</body>
-</html>
+const $=id=>document.getElementById(id),video=$('camera'),canvas=$('overlay'),ctx=canvas.getContext('2d'),proc=$('proc'),pc=proc.getContext('2d',{willReadFrequently:true});
+const status=$('status'),detail=$('detail'),instruction=$('instruction'),stats=$('stats'),startButton=$('start'),calButton=$('cal'),resetButton=$('reset');
+let stream=null, running=false, choosing=false, tracking=false, markers=[], templates=[], prev=null, lastFrame=0, goodCount=0, frame=0;
+let W=320,H=568, currentH=null, initialPts=null, origModel=null, lost=0, viewW=360,viewH=640;
+const pointLabels=['spodnji levi kot','spodnji stik črte z lokom','srednji stik črte z lokom','zgornji stik črte z lokom'];
+function report(s,d=''){status.textContent=s;detail.textContent=d}
+function resize(){const r=canvas.getBoundingClientRect();viewW=r.width;viewH=r.height;canvas.width=Math.round(r.width*devicePixelRatio);canvas.height=Math.round(r.height*devicePixelRatio);ctx.setTransform(canvas.width/r.width,0,0,canvas.height/r.height,0,0);const k=Math.min(1,320/r.width);W=Math.round(r.width*k);H=Math.round(r.height*k);proc.width=W;proc.height=H;if(tracking||choosing)reset('Zaslon se je obrnil — ponovno označi točke.');}
+function coords(e){let r=canvas.getBoundingClientRect();return [(e.clientX-r.left)*W/r.width,(e.clientY-r.top)*H/r.height]}
+function place(p){return [p[0]*viewW/W,p[1]*viewH/H]}
+function line(a,b,color,width=3){if(!a||!b)return;const A=place(a),B=place(b);ctx.beginPath();ctx.moveTo(...A);ctx.lineTo(...B);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke()}
+function dot(p,color,label){let [x,y]=place(p);ctx.beginPath();ctx.arc(x,y,6,0,Math.PI*2);ctx.fillStyle=color;ctx.fill();ctx.strokeStyle='#07141e';ctx.lineWidth=2;ctx.stroke();ctx.font='bold 16px system-ui';ctx.lineWidth=4;ctx.strokeText(label,x+10,y-10);ctx.fillStyle='#fff';ctx.fillText(label,x+10,y-10)}
+function sampleVideo(){if(video.readyState<2||!video.videoWidth)return false;let w=video.videoWidth,h=video.videoHeight,s=Math.max(W/w,H/h);let sw=W/s,sh=H/s;pc.drawImage(video,(w-sw)/2,(h-sh)/2,sw,sh,0,0,W,H);return true}
+function grayFrame(){const d=pc.getImageData(0,0,W,H).data,g=new Uint8Array(W*H);for(let i=0,j=0;i<g.length;i++,j+=4)g[i]=(d[j]*77+d[j+1]*150+d[j+2]*29)>>8;return g}
+function patch(gray,p,r=7){let x=Math.round(p[0]),y=Math.round(p[1]);if(x<r+2||y<r+2||x>=W-r-2||y>=H-r-2)return null;let a=new Uint8Array((2*r+1)**2),k=0;for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++)a[k++]=gray[(y+dy)*W+x+dx];return a}
+function match(gray,p,tmpl){let x=Math.round(p[0]),y=Math.round(p[1]),r=7,search=13,best=1e20,bx=x,by=y,valid=false;for(let dy=-search;dy<=search;dy+=2){let yy=y+dy;if(yy-r<0||yy+r>=H)continue;for(let dx=-search;dx<=search;dx+=2){let xx=x+dx;if(xx-r<0||xx+r>=W)continue;let k=0,sum=0;for(let j=-r;j<=r;j++)for(let i=-r;i<=r;i++){let v=gray[(yy+j)*W+xx+i]-tmpl[k++];sum+=Math.abs(v)}if(sum<best){best=sum;bx=xx;by=yy;valid=true}}} // podpiksel ni potreben za prvi preizkus
+return valid?{p:[bx,by],score:best/tmpl.length}:null}
+function solve(a,b){const n=b.length;for(let i=0;i<n;i++){let q=i;for(let j=i+1;j<n;j++)if(Math.abs(a[j][i])>Math.abs(a[q][i]))q=j;if(Math.abs(a[q][i])<1e-8)return null;[a[i],a[q]]=[a[q],a[i]];[b[i],b[q]]=[b[q],b[i]];let inv=1/a[i][i];for(let k=i;k<n;k++)a[i][k]*=inv;b[i]*=inv;for(let j=0;j<n;j++)if(j!==i){let c=a[j][i];for(let k=i;k<n;k++)a[j][k]-=c*a[i][k];b[j]-=c*b[i]}}return b}
+function homography(src,dst){let A=[],b=[];for(let i=0;i<4;i++){let [x,y]=src[i],[u,v]=dst[i];A.push([x,y,1,0,0,0,-u*x,-u*y]);b.push(u);A.push([0,0,0,x,y,1,-v*x,-v*y]);b.push(v)}const z=solve(A,b);return z?[...z,1]:null}
+function project(M,p){let [x,y]=p,d=M[6]*x+M[7]*y+M[8];return Math.abs(d)>1e-8?[(M[0]*x+M[1]*y+M[2])/d,(M[3]*x+M[4]*y+M[5])/d]:null}
+const R=150,angles=[21,51,76].map(x=>x*Math.PI/180),model=[[0,0],...angles.map(a=>[R*(1-Math.cos(a)),-R*Math.sin(a)])];
+function drawAxes(M){if(!M)return;let curve=[];for(let deg=0;deg<=90;deg+=4){let a=deg*Math.PI/180;curve.push(project(M,[R*(1-Math.cos(a)),-R*Math.sin(a)]))}curve.push(project(M,[R,0]));curve.push(project(M,[0,0]));for(let i=1;i<curve.length;i++)line(curve[i-1],curve[i],'#42f5d1',2);
+const origin=project(M,[R,0]),x=project(M,[R-45,0]),y=project(M,[R,-45]);line(origin,x,'#ff5353',5);line(origin,y,'#4cff7a',5);if(origin&&x)dot(x,'#ff5353','X');if(origin&&y)dot(y,'#4cff7a','Y');
+// Modra smer je samo grafični približek normale, ne izmerjena 6DoF orientacija.
+if(origin&&x&&y){let vx=[x[0]-origin[0],x[1]-origin[1]],vy=[y[0]-origin[0],y[1]-origin[1]],z=[origin[0]+.55*(vx[1]-vy[1]),origin[1]-.55*(vx[0]-vy[0])];line(origin,z,'#54a6ff',4);dot(z,'#54a6ff','Z*')}
+if(origin)dot(origin,'#fff','0')}
+function reset(message){choosing=false;tracking=false;markers=[];templates=[];currentH=null;initialPts=null;origModel=null;lost=0;calButton.disabled=!running;resetButton.disabled=!running;$('guide').style.display='none';if(message)report(message);instruction.textContent='Pritisni »Označi 4 točke« in označi štiri točke na lesu.'}
+function startCalibration(){if(!running)return;reset();choosing=true;$('guide').style.display='block';calButton.disabled=true;report('Označi točko 1/4',pointLabels[0]);instruction.textContent='Dotakni se spodnjega levega kota lesa (točka 1).'}
+function finishCalibration(){if(!sampleVideo())return;const gray=grayFrame();templates=markers.map(p=>patch(gray,p));if(templates.some(p=>!p)){reset('Točka je preblizu roba zaslona. Ponovi označevanje.');return}initialPts=markers.map(p=>p.slice());currentH=homography(model,markers);if(!currentH){reset('Kalibracija ni uspela — ponovno označi točke.');return}choosing=false;tracking=true;lost=0;$('guide').style.display='none';calButton.disabled=false;report('Poskusno sledenje vključeno ✓','Počasi premikaj telefon. To je prvi eksperimentalni sledilnik.');instruction.textContent='Turkizen obris in osi naj sledijo lesu. Z* je približek, ne izračunana 3D orientacija.'}
+function track(gray){let points=[],scores=[];for(let i=0;i<4;i++){let m=match(gray,markers[i],templates[i]);if(!m||m.score>40){lost++;if(lost>=4)reset('Sledenje izgubljeno — označi točke znova.');return}points.push(m.p);scores.push(m.score)}const M=homography(model,points);if(!M){lost++;return}const maxJump=Math.max(...points.map((p,i)=>Math.hypot(p[0]-markers[i][0],p[1]-markers[i][1])));if(maxJump>22){lost++;return}lost=0;markers=points;templates=markers.map(p=>patch(gray,p));currentH=M;goodCount++;if(goodCount%8===0)report('SLEDENJE (test) ✓',`4 točke · povprečna razlika ${Math.round(scores.reduce((a,b)=>a+b,0)/4)} · majhni premiki`)}
+function paint(){ctx.clearRect(0,0,viewW,viewH);if(choosing)markers.forEach((p,i)=>dot(p,'#ffe052',String(i+1)));if(tracking&&currentH){drawAxes(currentH);markers.forEach((p,i)=>dot(p,'#ffe052',String(i+1)))}}
+function tick(t){if(!running)return;requestAnimationFrame(tick);if(t-lastFrame<85)return;lastFrame=t;if(!sampleVideo())return;frame++;if(tracking){const g=grayFrame();track(g)}paint();if(frame%12===0)stats.textContent=`Video ${video.videoWidth}×${video.videoHeight} · sledenje ${tracking?'DA':choosing?'označevanje':'NE'} · brez OpenCV / WASM`}
+async function startCamera(){if(running)return;startButton.disabled=true;report('Odpiram kamero…');try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1280},height:{ideal:720}}});video.srcObject=stream;await video.play();running=true;resize();calButton.disabled=false;resetButton.disabled=false;startButton.textContent='Ustavi kamero';report('Geometry v4 · kamera deluje ✓','Izberi »Označi 4 točke«');requestAnimationFrame(tick)}catch(err){report('Napaka kamere: '+err.name,err.message||'');if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}}finally{startButton.disabled=false}}
+function stopCamera(){running=false;reset();if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;video.pause();video.srcObject=null;startButton.textContent='Zaženi kamero';calButton.disabled=true;resetButton.disabled=true;report('Kamera ustavljena');stats.textContent='Kamera: izklopljena'}
+startButton.addEventListener('click',()=>running?stopCamera():startCamera());calButton.addEventListener('click',startCalibration);resetButton.addEventListener('click',()=>reset('Ponastavljeno.'));
+canvas.addEventListener('pointerdown',e=>{if(!choosing)return;e.preventDefault();markers.push(coords(e));const n=markers.length;if(n===4){finishCalibration();return}report(`Označi točko ${n+1}/4`,pointLabels[n]);instruction.textContent=`Dotakni se: ${pointLabels[n]}.`});
+window.addEventListener('resize',resize);document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)stopCamera()});resize();
+</script></body></html>
