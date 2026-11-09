@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Coil AR - camera diagnostic</title>
+<style>
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101010;color:white;font-family:system-ui,sans-serif}
+#camera{position:fixed;inset:0;width:100%;height:100%;object-fit:cover;background:#202020;z-index:1}
+.panel{position:fixed;left:12px;right:12px;padding:12px;background:rgba(0,0,0,.83);border-radius:12px;text-align:center;z-index:2}
+#status{top:16px}#info{bottom:16px;font-size:12px;word-break:break-word;line-height:1.5}
+button{border:0;border-radius:8px;padding:10px 18px;font-size:16px;margin:8px 4px;background:#d8edff;color:#172d41}
+</style>
+</head>
+<body>
+<video id="camera" autoplay muted playsinline></video>
+<div class="panel" id="status">Camera-only test (no AR)<div><button id="start">Start camera</button><button id="flip">Switch camera</button></div></div>
+<div class="panel" id="info">Press Start camera to test the phone browser.</div>
+<script>
+const video=document.querySelector('#camera'),info=document.querySelector('#info'),status=document.querySelector('#status');
+let stream=null,front=false,lastError='none';
+const errorText=e=>e?.name+': '+e?.message;
+function diagnostic(){
+ const r=video.getBoundingClientRect();
+ info.textContent=`screen ${innerWidth}×${innerHeight} | box ${Math.round(r.width)}×${Math.round(r.height)} at ${Math.round(r.left)},${Math.round(r.top)} | stream ${stream?.active?'active':'none'} | video ${video.videoWidth}×${video.videoHeight} | readyState ${video.readyState} | paused ${video.paused} | error ${lastError}`;
+}
+async function start(){
+ status.firstChild.textContent='Requesting camera…';lastError='none';
+ try{
+   if(stream) stream.getTracks().forEach(t=>t.stop());
+   stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:front?'user':'environment'},width:{ideal:1280},height:{ideal:720}}});
+   video.srcObject=stream;
+   await video.play();
+   status.firstChild.textContent='Camera playing ✓';
+ }catch(e){lastError=errorText(e);status.firstChild.textContent='Camera error: '+lastError;}
+ diagnostic();
+}
+document.querySelector('#start').addEventListener('click',start);
+document.querySelector('#flip').addEventListener('click',()=>{front=!front;start();});
+window.addEventListener('resize',diagnostic);
+video.addEventListener('playing',diagnostic);
+setInterval(diagnostic,1500);diagnostic();
+</script>
+</body>
+</html>
