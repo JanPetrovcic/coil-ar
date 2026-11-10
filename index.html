@@ -3,138 +3,49 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Coil AR — Marker v5</title>
+<title>Coil AR — Marker v6</title>
 <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; }
-  html {
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100% !important;
-    height: 100% !important;
-    overflow: hidden !important;
-    background: #111;
-  }
-  body {
-    margin: 0 !important;
-    padding: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    height: 100dvh !important;
-    overflow: hidden !important;
-    background: transparent !important;
-    font-family: Arial, sans-serif;
-  }
-  /* AR.js video: ohranimo celozaslonski prikaz iz delujoče v4.
-     Pomembno: object-fit:cover lahko odreže robove slike. */
-  video, video.arjs-video, body > video {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    height: 100dvh !important;
-    max-width: none !important;
-    max-height: none !important;
-    object-fit: cover !important;
-    transform: none !important;
-    display: block !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    z-index: 0 !important;
-    margin: 0 !important;
-  }
-  a-scene {
-    position: fixed !important;
-    inset: 0 !important;
-    width: 100vw !important;
-    height: 100vh !important;
-    height: 100dvh !important;
-    background: transparent !important;
-    z-index: 1 !important;
-  }
-  a-scene canvas { background: transparent !important; }
-  .a-enter-vr, .a-enter-ar { display: none !important; }
-
-  /* HUD mora biti omejen na VIDNI zaslon, tudi na ozkih telefonih. */
-  #hud, #tip {
-    position: fixed !important;
-    left: max(10px, env(safe-area-inset-left)) !important;
-    right: max(10px, env(safe-area-inset-right)) !important;
-    width: auto !important;
-    max-width: calc(100vw - 20px) !important;
-    z-index: 9999 !important;
-    color: white;
-    pointer-events: none;
-    text-align: center;
-    overflow-wrap: anywhere;
-    word-break: normal;
-    white-space: normal;
-    min-width: 0;
-  }
-  #hud { top: calc(8px + env(safe-area-inset-top)); }
-  #status, #diag, #tip {
-    border-radius: 10px;
-    background: rgba(0, 0, 0, .76);
-    padding: 7px 9px;
-    max-width: 100%;
-    overflow-wrap: anywhere;
-  }
-  #status { font-size: 14px; font-weight: bold; line-height: 1.3; }
-  #diag { font-size: 11px; color: #c7efff; line-height: 1.4; margin-top: 5px; }
-  #tip {
-    bottom: calc(8px + env(safe-area-inset-bottom));
-    font-size: 11px;
-    line-height: 1.35;
-  }
-  @media (max-width: 360px) {
-    #status { font-size: 13px; }
-    #diag, #tip { font-size: 10px; }
-  }
+  *,*::before,*::after{box-sizing:border-box}
+  html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#111;font-family:Arial,sans-serif}
+  body{height:100dvh!important}
+  video,video.arjs-video,body>video{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;object-fit:cover!important;transform:none!important;display:block!important;opacity:1!important;visibility:visible!important;z-index:0!important;margin:0!important}
+  a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;background:transparent!important;z-index:1!important}
+  a-scene canvas{background:transparent!important}
+  .a-enter-vr,.a-enter-ar{display:none!important}
+  #hud,#tip{position:fixed!important;left:max(10px,env(safe-area-inset-left))!important;right:max(10px,env(safe-area-inset-right))!important;width:auto!important;max-width:calc(100vw - 20px)!important;z-index:9999;color:#fff;pointer-events:none;text-align:center;overflow-wrap:anywhere;white-space:normal;min-width:0}
+  #hud{top:calc(8px + env(safe-area-inset-top))}
+  #status,#diag,#tip{border-radius:10px;background:rgba(0,0,0,.76);padding:7px 9px;overflow-wrap:anywhere}
+  #status{font-size:14px;font-weight:bold;line-height:1.3}
+  #diag{font-size:11px;color:#c7efff;line-height:1.4;margin-top:5px}
+  #tip{bottom:calc(8px + env(safe-area-inset-bottom));font-size:11px;line-height:1.35}
+  @media(max-width:360px){#status{font-size:13px}#diag,#tip{font-size:10px}}
 </style>
 </head>
 <body>
-<div id="hud">
-  <div id="status">Marker v5 — zaganjam kamero …</div>
-  <div id="diag">Čakam na video …</div>
-</div>
-<div id="tip">Barcode 3×3 · ID 5 · 35 mm | Rdeča X · Zelena Y (iz markerja) · Modra Z</div>
+<div id="hud"><div id="status">Marker v6 — zaganjam kamero …</div><div id="diag">Čakam na video …</div></div>
+<div id="tip">Barcode 3×3 · ID 5 · 35 mm | X rdeča · Y zelena (iz markerja) · Z modra</div>
 
-<!--
-  NASTAVITVE KAMERE / SLEDENJA (začetni preizkus višje ločljivosti):
-  sourceWidth / sourceHeight = ZAHTEVANA ločljivost kamere (ne zagotovljena)
-  canvasWidth / canvasHeight = ločljivost OBDELAVE za marker
-  maxDetectionRate = največ poskusov prepoznavanja na sekundo
-  Če kamera ne dela, uporabi priloženi index-standard.html.
--->
 <a-scene embedded vr-mode-ui="enabled:false" device-orientation-permission-ui="enabled:false"
          renderer="alpha:true;antialias:true"
          arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;sourceWidth:1280;sourceHeight:960;displayWidth:1280;displayHeight:960;canvasWidth:960;canvasHeight:720;maxDetectionRate:30;">
   <a-marker id="target" type="barcode" value="5" size="0.035" emitevents="true"
             smooth="true" smooth-count="5" smooth-tolerance="0.01" smooth-threshold="2">
-    <!-- 
-      coil-origin: SAMO PREMIK izhodišča (metri).
-      axis-visualization: SAMO VELIKOST osi.
-      Tako AXIS_SCALE NE povečuje OFFSET_X/Y/Z.
-    -->
-    <a-entity id="coil-origin">
-      <a-entity id="axis-visualization">
-        <!-- Izhodišče -->
-        <a-sphere radius="0.008" color="#ffffff" material="shader:flat;side:double"></a-sphere>
-        <a-torus radius="0.014" radius-tubular="0.0018" rotation="90 0 0" color="#ffffff" material="shader:flat"></a-torus>
-
-        <!-- X: rdeča -->
+    <!-- OFFSET vpliva samo na to zunanje izhodišče, SCALE samo na notranjo risbo. -->
+    <a-entity id="coil-origin" position="0 0 -0.20">
+      <a-entity id="axis-visualization" scale="10 10 10">
+        <a-sphere radius="0.008" color="#fff" material="shader:flat;side:double"></a-sphere>
+        <a-torus radius="0.014" radius-tubular="0.0018" rotation="90 0 0" color="#fff" material="shader:flat"></a-torus>
+        <!-- X + -->
         <a-cylinder position="0.05 0 0" radius="0.0027" height="0.10" rotation="0 0 -90" color="#ff3030" material="shader:flat"></a-cylinder>
         <a-cone position="0.107 0 0" radius-bottom="0.008" radius-top="0" height="0.015" rotation="0 0 -90" color="#ff3030" material="shader:flat"></a-cone>
         <a-text value="X" position="0.124 0.009 0" color="#ff3030" align="center" width="0.09" side="double"></a-text>
-
-        <!-- Y: zelena, pravokotno na marker -->
+        <!-- Y + (pravokotno na marker) -->
         <a-cylinder position="0 0.05 0" radius="0.0027" height="0.10" color="#2bff60" material="shader:flat"></a-cylinder>
         <a-cone position="0 0.107 0" radius-bottom="0.008" radius-top="0" height="0.015" color="#2bff60" material="shader:flat"></a-cone>
         <a-text value="Y" position="0.012 0.129 0" color="#2bff60" align="center" width="0.09" side="double"></a-text>
-
-        <!-- Z: modra, v ravnini markerja -->
+        <!-- Z + (v ravnini markerja) -->
         <a-cylinder position="0 0 0.05" radius="0.0027" height="0.10" rotation="90 0 0" color="#2b9cff" material="shader:flat"></a-cylinder>
         <a-cone position="0 0 0.107" radius-bottom="0.008" radius-top="0" height="0.015" rotation="90 0 0" color="#2b9cff" material="shader:flat"></a-cone>
         <a-text value="Z" position="0.012 0.006 0.132" color="#2b9cff" align="center" rotation="-90 0 0" width="0.09" side="double"></a-text>
@@ -145,20 +56,19 @@
 </a-scene>
 
 <script>
-/* ========================================================================
-   NASTAVITVE — SPREMINJAJ SAMO TE VRSTICE
-
-   OFFSET_*: položaj novega izhodišča glede na središče markerja, v METRIH.
-   AXIS_SCALE: enotna povečava osi, puščic, napisov in krogle.
-
-   Os Y je pravokotna iz ravnine markerja, X in Z sta v njegovi ravnini.
-   0.01 pomeni 1 cm. Marker je na zadnji strani tuljave.
-   ======================================================================== */
+/* ====================================================================
+   NASTAVITVE — SPREMINJAJ SAMO TUKAJ
+   OFFSET v metrih glede na središče markerja.  -0.20 pomeni -20 cm.
+   AXIS_SCALE: najmanj 10 (10 = prejšnja povečava v4/v5).
+   Skala ne vpliva na OFFSET; marker ostane 35 x 35 mm.
+   Če želiš vizualno manjše osi, zmanjšaj AXIS_SCALE, a bodo na telefonu
+   težje vidne. Za točno merilo je pomembno size=0.035 zgoraj.
+   ==================================================================== */
 const OFFSET_X = 0.00;
 const OFFSET_Y = 0.00;
 const OFFSET_Z = -0.20;
-const AXIS_SCALE = 15;        // 1 = izvirno, 3 = 3×, 10 = 10×
-/* ======================================================================== */
+const AXIS_SCALE = 10; // poskusi 10, 15, 20 ...
+/* ==================================================================== */
 
 (function () {
   'use strict';
@@ -168,67 +78,49 @@ const AXIS_SCALE = 15;        // 1 = izvirno, 3 = 3×, 10 = 10×
   const axes = document.getElementById('axis-visualization');
   const status = document.getElementById('status');
   const diag = document.getElementById('diag');
+  let found = false, loaded = false;
+  const scale = Math.max(10, Number(AXIS_SCALE) || 10);
 
-  // Pomembno: povečujemo notranjo vizualizacijo, ne markerja ali offseta.
-  origin.setAttribute('position', `${OFFSET_X} ${OFFSET_Y} ${OFFSET_Z}`);
-  axes.setAttribute('scale', `${AXIS_SCALE} ${AXIS_SCALE} ${AXIS_SCALE}`);
+  function applySettings() {
+    // Uporaba obeh načinov: A-Frame komponenta in dejanski THREE.Object3D.
+    // Kličemo po 'loaded', da inicializacija A-Frame ne povozi vrednosti.
+    const pos = {x: Number(OFFSET_X), y: Number(OFFSET_Y), z: Number(OFFSET_Z)};
+    origin.setAttribute('position', pos);
+    axes.setAttribute('scale', {x:scale, y:scale, z:scale});
+    if (origin.object3D) origin.object3D.position.set(pos.x,pos.y,pos.z);
+    if (axes.object3D) axes.object3D.scale.set(scale,scale,scale);
+  }
 
-  let found = false;
-  let loaded = false;
-  marker.addEventListener('markerFound', () => {
-    found = true;
-    status.textContent = '✓ Marker ID 5 zaznan — XYZ';
-  });
-  marker.addEventListener('markerLost', () => {
-    found = false;
-    status.textContent = 'Marker izgubljen — pokaži ID 5';
-  });
-  scene.addEventListener('loaded', () => {
-    loaded = true;
-    if (!found) status.textContent = 'Marker v5 — usmeri telefon na ID 5';
-  });
-  window.addEventListener('error', event => {
-    status.textContent = 'Napaka: ' + (event.message || 'neznana');
-  });
-  window.addEventListener('unhandledrejection', event => {
-    status.textContent = 'Napaka: ' + String(event.reason || 'neznana');
-  });
+  function onReady() { loaded = true; applySettings(); if (!found) status.textContent='Marker v6 — usmeri telefon na ID 5'; }
+  scene.addEventListener('loaded', onReady);
+  origin.addEventListener('loaded', applySettings);
+  axes.addEventListener('loaded', applySettings);
+  if (scene.hasLoaded) onReady();
+  marker.addEventListener('markerFound', () => { found = true; applySettings(); status.textContent='✓ Marker ID 5 zaznan — XYZ'; });
+  marker.addEventListener('markerLost', () => { found = false; status.textContent='Marker izgubljen — pokaži ID 5'; });
+  window.addEventListener('error', e => { status.textContent='Napaka: '+(e.message||'neznana'); });
+  window.addEventListener('unhandledrejection', e => { status.textContent='Napaka: '+String(e.reason||'neznana'); });
 
   function layoutAndDiagnostics() {
-    const video = [...document.querySelectorAll('video')].find(v => v.srcObject) || document.querySelector('video');
-    const canvas = scene.querySelector('canvas');
-    if (video) {
-      video.setAttribute('playsinline', '');
-      video.muted = true;
-      // Enako kot v delujočem v4: samo popravimo prikaz, ne zaganjamo nove kamere.
-      for (const [key, value] of Object.entries({
-        position: 'fixed', top: '0', left: '0',
-        width: '100vw', height: '100dvh',
-        objectFit: 'cover', transform: 'none', zIndex: '0'
-      })) {
-        video.style.setProperty(key.replace(/[A-Z]/g, ch => '-' + ch.toLowerCase()), value, 'important');
-      }
+    const video=[...document.querySelectorAll('video')].find(v=>v.srcObject)||document.querySelector('video');
+    const canvas=scene.querySelector('canvas');
+    if(video){
+      video.setAttribute('playsinline','');video.muted=true;
+      for(const [k,v] of Object.entries({position:'fixed',top:'0',left:'0',width:'100vw',height:'100dvh',objectFit:'cover',transform:'none',zIndex:'0'}))
+        video.style.setProperty(k.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),v,'important');
     }
-    if (scene.renderer) {
-      scene.renderer.setClearColor(0x000000, 0);
-      scene.renderer.setClearAlpha(0);
-    }
-    if (canvas) canvas.style.setProperty('background', 'transparent', 'important');
-
-    if (!video) {
-      diag.textContent = 'Kamera: čakam · Scena: ' + (loaded ? 'OK' : 'nalaga');
-      return;
-    }
-    const track = video.srcObject?.getVideoTracks?.()[0];
-    const settings = track?.getSettings?.() || {};
-    const requested = 'zahtevano 1280×960';
-    const actual = `${video.videoWidth || 0}×${video.videoHeight || 0}`;
-    const streamInfo = settings.width && settings.height
-      ? ` · tok ${settings.width}×${settings.height}` : '';
-    diag.textContent = `Video ${actual}${streamInfo} · ${video.paused ? 'premor' : 'predvaja'} · ID 5 ${found ? 'DA' : 'NE'} · ${requested} · skala ${AXIS_SCALE}×`;
+    if(scene.renderer){scene.renderer.setClearColor(0x000000,0);scene.renderer.setClearAlpha(0);}
+    if(canvas)canvas.style.setProperty('background','transparent','important');
+    if(!video){diag.textContent='Kamera: čakam · scena '+(loaded?'OK':'nalaga');return;}
+    const track=video.srcObject?.getVideoTracks?.()[0];
+    const settings=track?.getSettings?.()||{};
+    const res=`${video.videoWidth||0}×${video.videoHeight||0}`;
+    const pose=origin.object3D?.position;
+    const p=pose?`${pose.x.toFixed(2)}, ${pose.y.toFixed(2)}, ${pose.z.toFixed(2)}`:'še ni';
+    diag.textContent=`Video ${res} · ${video.paused?'premor':'predvaja'} · ID 5 ${found?'DA':'NE'} · OFFSET (${p}) m · SCALE ${scale}×`;
   }
-  window.addEventListener('resize', layoutAndDiagnostics);
-  setInterval(layoutAndDiagnostics, 850);
+  window.addEventListener('resize',layoutAndDiagnostics);
+  setInterval(layoutAndDiagnostics,850);
   layoutAndDiagnostics();
 })();
 </script>
