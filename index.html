@@ -4,33 +4,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Coil AR — Marker v10 · Biot–Savart</title>
+<title>Coil AR v11 — Magnetic field</title>
 
 <script>
-// Izbira kamere brez dodatnega video toka
-(() => {
+(function () {
   if (!navigator.mediaDevices?.getUserMedia) return;
 
-  const original = navigator.mediaDevices.getUserMedia.bind(
-    navigator.mediaDevices
-  );
-  const id = sessionStorage.getItem('coilCameraId');
+  const original =
+    navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
 
-  if (!id) return;
+  const selected = sessionStorage.getItem("coilCameraId");
+
+  if (!selected) return;
 
   navigator.mediaDevices.getUserMedia = async constraints => {
     if (!constraints?.video) return original(constraints);
 
-    const video = typeof constraints.video === 'object'
+    const video = typeof constraints.video === "object"
       ? {...constraints.video} : {};
 
     delete video.facingMode;
-    video.deviceId = {exact:id};
+    video.deviceId = {exact:selected};
 
     try {
       return await original({...constraints,video});
-    } catch (e) {
-      window.cameraFallback = e.name;
+    } catch(e) {
       return original(constraints);
     }
   };
@@ -41,37 +39,41 @@
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 
 <style>
-* {
+*,*::before,*::after {
   box-sizing:border-box;
 }
 
 html,body {
-  margin:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
+  margin:0!important;
+  padding:0!important;
+  width:100%!important;
+  height:100%!important;
+  overflow:hidden!important;
   background:#111;
   font-family:Arial,sans-serif;
 }
 
 body {
-  height:100dvh;
+  height:100dvh!important;
 }
 
-video,video.arjs-video,body>video {
+video,
+video.arjs-video,
+body>video {
   position:fixed!important;
   top:0!important;
   left:0!important;
   width:100vw!important;
   height:100dvh!important;
-  object-fit:cover!important;
   max-width:none!important;
   max-height:none!important;
+  object-fit:cover!important;
   transform:none!important;
-  z-index:0!important;
+  margin:0!important;
   display:block!important;
-  opacity:1!important;
   visibility:visible!important;
+  opacity:1!important;
+  z-index:0!important;
 }
 
 a-scene {
@@ -93,10 +95,10 @@ a-scene canvas {
 
 #hud {
   position:fixed;
-  z-index:9000;
   top:calc(8px + env(safe-area-inset-top));
   left:max(8px,env(safe-area-inset-left));
   right:max(8px,env(safe-area-inset-right));
+  z-index:9998;
   color:white;
   text-align:center;
   pointer-events:none;
@@ -107,7 +109,7 @@ a-scene canvas {
   background:rgba(0,0,0,.75);
   border-radius:9px;
   padding:7px 9px;
-  margin-bottom:4px;
+  margin-bottom:5px;
 }
 
 #status {
@@ -118,40 +120,39 @@ a-scene canvas {
 #diag {
   font-size:10px;
   color:#c7efff;
-  line-height:1.35;
 }
 
 #settings {
   position:fixed;
-  z-index:10000;
-  right:max(8px,env(safe-area-inset-right));
+  right:8px;
   bottom:calc(9px + env(safe-area-inset-bottom));
   width:min(350px,calc(100vw - 16px));
-  color:#fff;
+  z-index:10000;
+  color:white;
   font-size:12px;
 }
 
 #toggle {
   display:block;
   margin-left:auto;
+  border:0;
   background:#1460b6;
   color:white;
-  border:0;
   border-radius:9px;
   padding:12px 15px;
-  font-weight:bold;
   font-size:14px;
+  font-weight:bold;
 }
 
 #panel {
   display:none;
   margin-top:6px;
+  padding:12px;
   background:rgba(10,15,22,.96);
   border:1px solid #536778;
   border-radius:12px;
-  padding:12px;
   max-height:68dvh;
-  overflow-y:auto;
+  overflow:auto;
 }
 
 #panel.open {
@@ -172,26 +173,33 @@ a-scene canvas {
   accent-color:#51c8ff;
 }
 
-#panel select,
-#panel button {
-  color:white;
+#panel button,
+#panel select {
   background:#273a4b;
+  color:white;
   border:1px solid #8b9fb2;
   border-radius:7px;
   padding:8px;
-}
-
-#panel select {
-  width:100%;
 }
 
 #panel button {
   margin-top:8px;
 }
 
-#panel .reading {
+.reading {
   color:#8ee9ff;
   font-variant-numeric:tabular-nums;
+}
+
+.check {
+  display:flex!important;
+  gap:8px;
+  align-items:center;
+}
+
+.check input {
+  width:18px;
+  height:18px;
 }
 
 #panel p {
@@ -199,30 +207,19 @@ a-scene canvas {
   font-size:11px;
   line-height:1.4;
 }
-
-#panel .check {
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-
-#panel .check input {
-  width:18px;
-  height:18px;
-}
 </style>
 </head>
 
 <body>
 
 <div id="hud">
-  <div id="status">Marker v10 — zaganjam kamero …</div>
+  <div id="status">Coil AR v11 — zaganjam kamero …</div>
   <div id="diag">Čakam na video …</div>
 </div>
 
-<!-- =====================================================
+<!-- =============================
      AR SCENA
-     ===================================================== -->
+     ============================= -->
 
 <a-scene
   embedded
@@ -242,15 +239,14 @@ a-scene canvas {
     smooth-tolerance="0.01"
     smooth-threshold="2">
 
-    <!-- Skupno izhodišče -->
     <a-entity id="coil-origin">
 
-      <!-- XYZ KOORDINATNI SISTEM -->
+      <!-- Koordinatni sistem -->
       <a-entity id="axes">
 
         <a-sphere
           radius="0.008"
-          color="#fff"
+          color="white"
           material="shader:flat">
         </a-sphere>
 
@@ -274,15 +270,6 @@ a-scene canvas {
           material="shader:flat">
         </a-cone>
 
-        <a-text
-          value="X"
-          position="0.124 0.009 0"
-          color="#ff3030"
-          width="0.09"
-          align="center"
-          side="double">
-        </a-text>
-
         <!-- Y -->
         <a-cylinder
           position="0 0.05 0"
@@ -300,15 +287,6 @@ a-scene canvas {
           color="#2bff60"
           material="shader:flat">
         </a-cone>
-
-        <a-text
-          value="Y"
-          position="0.012 0.129 0"
-          color="#2bff60"
-          width="0.09"
-          align="center"
-          side="double">
-        </a-text>
 
         <!-- Z -->
         <a-cylinder
@@ -330,47 +308,33 @@ a-scene canvas {
           material="shader:flat">
         </a-cone>
 
-        <a-text
-          value="Z"
-          position="0.012 0.006 0.132"
-          rotation="-90 0 0"
-          color="#2b9cff"
-          width="0.09"
-          align="center"
-          side="double">
-        </a-text>
-
       </a-entity>
 
-      <!-- DEJANSKO MAGNETNO POLJE -->
+      <!-- Magnetno polje -->
       <a-entity id="field-root"></a-entity>
 
     </a-entity>
   </a-marker>
 
   <a-entity camera></a-entity>
+
 </a-scene>
 
-<!-- =====================================================
-     UPORABNIŠKE NASTAVITVE
-     ===================================================== -->
+<!-- =============================
+     NASTAVITVE
+     ============================= -->
 
 <div id="settings">
 
-  <button id="toggle" type="button">
-    ⚙ Nastavitve
-  </button>
+  <button id="toggle">⚙ Nastavitve</button>
 
   <div id="panel">
 
-    <strong>Coil AR v10 · ID 5 · 35 mm</strong>
+    <strong>Coil AR v11 · Marker ID 5</strong>
 
     <p>
-      Biot–Savart: ena krožna tokovna zanka,
-      R = 15 cm. Prikazan je samo del silnic
-      nad ravnino XZ (+Y).
-      Puščice označujejo smer polja,
-      ne gibanja snovi.
+      Fizikalni približek polja krožne tokovne zanke.
+      Prikazani so samo deli silnic nad ravnino tuljave.
     </p>
 
     <label>Kamera</label>
@@ -378,52 +342,47 @@ a-scene canvas {
       <option value="">Privzeta zadnja kamera</option>
     </select>
 
-    <button id="reloadCamera" type="button">
-      Uporabi kamero ↻
-    </button>
-
-    <button id="refreshCameras" type="button">
-      Osveži seznam
-    </button>
+    <button id="reloadCamera">Uporabi kamero ↻</button>
+    <button id="refreshCameras">Osveži kamere</button>
 
     <label>
       Korekcija merila:
-      <b class="reading" id="calVal">1.00×</b>
+      <b id="calVal" class="reading">1.00×</b>
     </label>
     <input id="cal" type="range"
       min="0.5" max="2" step="0.05" value="1">
 
     <label>
       OFFSET X:
-      <b class="reading" id="xVal">0 cm</b>
+      <b id="xVal" class="reading">0 cm</b>
     </label>
     <input id="x" type="range"
       min="-100" max="100" step="1" value="0">
 
     <label>
       OFFSET Y:
-      <b class="reading" id="yVal">0 cm</b>
+      <b id="yVal" class="reading">0 cm</b>
     </label>
     <input id="y" type="range"
       min="-100" max="100" step="1" value="0">
 
     <label>
       OFFSET Z:
-      <b class="reading" id="zVal">-20 cm</b>
+      <b id="zVal" class="reading">-20 cm</b>
     </label>
     <input id="z" type="range"
       min="-100" max="100" step="1" value="-20">
 
     <label>
       XYZ SCALE:
-      <b class="reading" id="scaleVal">10×</b>
+      <b id="scaleVal" class="reading">10×</b>
     </label>
     <input id="scale" type="range"
       min="10" max="30" step="1" value="10">
 
     <label class="check">
       <input id="showField" type="checkbox" checked>
-      Prikaži magnetno polje
+      Prikaži magnetne silnice
     </label>
 
     <label class="check">
@@ -433,28 +392,31 @@ a-scene canvas {
 
     <label>
       Število smeri:
-      <b class="reading" id="planesVal">8</b>
+      <b id="planesVal" class="reading">8</b>
     </label>
     <input id="planes" type="range"
       min="4" max="16" step="2" value="8">
 
     <label>
-      Hitrost puščic:
-      <b class="reading" id="speedVal">0.15</b>
+      Hitrost animacije:
+      <b id="speedVal" class="reading">0.15</b>
     </label>
     <input id="speed" type="range"
       min="0" max="0.6" step="0.025" value="0.15">
 
     <label>
-      Smer toka:
-      <b class="reading" id="directionVal">+1</b>
+      Višina prikaza:
+      <b id="heightVal" class="reading">24 cm</b>
     </label>
-    <input id="direction" type="range"
-      min="-1" max="1" step="2" value="1">
+    <input id="height" type="range"
+      min="12" max="40" step="2" value="24">
 
-    <button id="reset" type="button">
-      Ponastavi nastavitve
-    </button>
+    <label class="check">
+      <input id="reverse" type="checkbox">
+      Obrni smer toka
+    </label>
+
+    <button id="reset">Ponastavi nastavitve</button>
 
     <p id="readout"></p>
 
@@ -462,284 +424,268 @@ a-scene canvas {
 </div>
 
 <script>
-/* ============================================================
+/* =====================================================
    FIZIKALNE NASTAVITVE
-   ============================================================ */
+   ===================================================== */
 
-// Marker in tuljava v centimetrih
 const MARKER_SIZE_CM = 3.5;
 const COIL_RADIUS_CM = 15;
 
-// Začetne lokacije za izračun silnic
-const FIELD_SEED_RADII_CM = [3, 6, 9, 12, 13.8];
+// Začetne točke so zdaj NAD VODNIKOM.
+// Oddaljenost začetne točke od vodnika po Y.
+const FIELD_SEED_HEIGHTS_CM = [
+  1.5, 3, 5, 7, 9
+];
 
-// Numerični izračun
-const FIELD_WIRE_SEGMENTS = 96;
-const FIELD_STEP_CM = 0.40;
-const FIELD_MAX_STEPS = 320;
+// Število segmentov modela tokovne zanke
+const WIRE_SEGMENTS = 96;
 
-// Omejitve prikazanega prostora
-const FIELD_MAX_HEIGHT_CM = 42;
-const FIELD_MAX_RADIUS_CM = 45;
+// Numerična integracija
+const STEP_CM = 0.28;
+const MAX_STEPS = 550;
+
+// Omejitev radialne razdalje
+const MAX_RADIUS_CM = 38;
 
 // Barve
 const FIELD_COLOR = 0x35e9ff;
-const ARROW_COLOR = 0xffec65;
+const ARROW_COLOR = 0xffe45e;
+const COIL_COLOR = 0xffa64b;
 
-// Pretvorba cm v koordinatni sistem AR.js
+// AR.js merilo
 const SCENE_UNITS_PER_CM = 1 / MARKER_SIZE_CM;
 
-// Začetne nastavitve
 const DEFAULTS = {
-  x: 0,
-  y: 0,
-  z: -20,
-  cal: 1,
-  scale: 10,
-  planes: 8,
-  speed: 0.15,
-  direction: 1,
-  showField: true,
-  showArrows: true
+  x:0,
+  y:0,
+  z:-20,
+  cal:1,
+  scale:10,
+  planes:8,
+  speed:0.15,
+  height:24,
+  reverse:false,
+  showField:true,
+  showArrows:true
 };
 
-/* ============================================================
-   GLAVNI PROGRAM
-   ============================================================ */
+/* =====================================================
+   PROGRAM
+   ===================================================== */
 
 (() => {
-'use strict';
+"use strict";
 
 const $ = id => document.getElementById(id);
 
-const scene = document.querySelector('a-scene');
+const scene = document.querySelector("a-scene");
+const marker = $("target");
+const origin = $("coil-origin");
+const axes = $("axes");
+const field = $("field-root");
 
-const marker = $('target');
-const origin = $('coil-origin');
-const axes = $('axes');
-const field = $('field-root');
-
-const status = $('status');
-const diag = $('diag');
-
-let cfg = {...DEFAULTS};
-
-let sceneReady = false;
-let found = false;
-let initialized = false;
-
-let wire = null;
-let arrows = [];
-let oldGroup = null;
-let animPhase = 0;
+const status = $("status");
+const diag = $("diag");
 
 const UP = new THREE.Vector3(0,1,0);
 
-/* ============================================================
-   SHRANJENE NASTAVITVE
-   ============================================================ */
+let cfg = {...DEFAULTS};
 
+let ready = false;
+let initialized = false;
+let found = false;
+
+let wire = [];
+let fieldGroup = null;
+let movingArrows = [];
+let animationTime = 0;
+let lastFrame = 0;
+
+// Shrani nastavitve v različico v11
 try {
   const saved = JSON.parse(
-    localStorage.getItem('coilARv10') ||
-    localStorage.getItem('coilARv9') ||
-    'null'
+    localStorage.getItem("coilARv11") ||
+    localStorage.getItem("coilARv10") ||
+    "null"
   );
 
-  if (saved && typeof saved === 'object') {
-
-    for (const key of [
-      'x','y','z','cal','scale',
-      'planes','speed','direction'
+  if (saved) {
+    for (const k of [
+      "x","y","z","cal","scale",
+      "planes","speed","height"
     ]) {
       if (
-        saved[key] !== undefined &&
-        Number.isFinite(Number(saved[key]))
+        saved[k] !== undefined &&
+        Number.isFinite(Number(saved[k]))
       ) {
-        cfg[key] = Number(saved[key]);
+        cfg[k] = Number(saved[k]);
       }
     }
 
-    for (const key of ['showField','showArrows']) {
-      if (typeof saved[key] === 'boolean') {
-        cfg[key] = saved[key];
+    for (const k of [
+      "showField","showArrows","reverse"
+    ]) {
+      if (typeof saved[k] === "boolean") {
+        cfg[k] = saved[k];
       }
     }
   }
-} catch (e) {}
+} catch(e) {}
 
-/* ============================================================
-   BIOT–SAVART: KROŽNI VODNIK
-   ============================================================ */
+/* =====================================================
+   BIOT–SAVART
+   ===================================================== */
 
-// Tuljava leži v XZ ravnini.
-// Za izračun smeri polja konstanta mu0*I/(4*pi)
-// ni potrebna, ker vektor B normiramo.
+function createWire() {
+  wire = [];
 
-function makeWire() {
+  for(let i=0;i<WIRE_SEGMENTS;i++) {
 
-  const arr = [];
+    const a = 2*Math.PI*i/WIRE_SEGMENTS;
+    const b = 2*Math.PI*(i+1)/WIRE_SEGMENTS;
 
-  for (let i=0; i<FIELD_WIRE_SEGMENTS; i++) {
+    const x0 = COIL_RADIUS_CM*Math.cos(a);
+    const z0 = COIL_RADIUS_CM*Math.sin(a);
 
-    const a = 2*Math.PI*i/FIELD_WIRE_SEGMENTS;
-    const b = 2*Math.PI*(i+1)/FIELD_WIRE_SEGMENTS;
+    const x1 = COIL_RADIUS_CM*Math.cos(b);
+    const z1 = COIL_RADIUS_CM*Math.sin(b);
 
-    const ax = COIL_RADIUS_CM*Math.cos(a);
-    const az = COIL_RADIUS_CM*Math.sin(a);
-
-    const bx = COIL_RADIUS_CM*Math.cos(b);
-    const bz = COIL_RADIUS_CM*Math.sin(b);
-
-    arr.push({
-      mx: (ax+bx)/2,
-      mz: (az+bz)/2,
-      dx: bx-ax,
-      dz: bz-az
+    wire.push({
+      mx:(x0+x1)/2,
+      mz:(z0+z1)/2,
+      dx:x1-x0,
+      dz:z1-z0
     });
   }
-
-  return arr;
 }
 
-// Izračuna smer magnetnega polja v točki p
-function fieldDirection(p) {
+function magneticDirection(p) {
 
-  let bx=0, by=0, bz=0;
+  let bx=0,by=0,bz=0;
 
-  for (const s of wire) {
+  for(const s of wire) {
 
-    const rx = p.x-s.mx;
-    const ry = p.y;
-    const rz = p.z-s.mz;
+    const rx=p.x-s.mx;
+    const ry=p.y;
+    const rz=p.z-s.mz;
 
-    // Numerična regularizacija blizu vodnika
-    const r2 = rx*rx+ry*ry+rz*rz+0.035;
-    const q = 1/(r2*Math.sqrt(r2));
+    const r2=rx*rx+ry*ry+rz*rz+0.04;
+    const inv=1/(r2*Math.sqrt(r2));
 
-    // dl × r
-    bx += (-s.dz*ry)*q;
-    by += (s.dz*rx-s.dx*rz)*q;
-    bz += (s.dx*ry)*q;
+    bx+=(-s.dz*ry)*inv;
+    by+=(s.dz*rx-s.dx*rz)*inv;
+    bz+=(s.dx*ry)*inv;
   }
 
-  const n = Math.hypot(bx,by,bz);
+  const len=Math.hypot(bx,by,bz);
 
-  if (n <= 1e-12) return null;
+  if(len<1e-12 || !Number.isFinite(len))
+    return null;
 
   return new THREE.Vector3(
-    bx/n,
-    by/n,
-    bz/n
+    bx/len,by/len,bz/len
   );
 }
 
-/* ============================================================
-   NUMERIČNO SLEDENJE SILNIC — RK4
-   ============================================================ */
+// Runge-Kutta 4. reda
+function rk4(p,step) {
 
-function advance(p,h) {
+  const a=magneticDirection(p);
+  if(!a)return null;
 
-  const k1 = fieldDirection(p);
-  if (!k1) return null;
-
-  const k2 = fieldDirection(
-    p.clone().addScaledVector(k1,h/2)
+  const b=magneticDirection(
+    p.clone().addScaledVector(a,step/2)
   );
-  if (!k2) return null;
+  if(!b)return null;
 
-  const k3 = fieldDirection(
-    p.clone().addScaledVector(k2,h/2)
+  const c=magneticDirection(
+    p.clone().addScaledVector(b,step/2)
   );
-  if (!k3) return null;
+  if(!c)return null;
 
-  const k4 = fieldDirection(
-    p.clone().addScaledVector(k3,h)
+  const d=magneticDirection(
+    p.clone().addScaledVector(c,step)
   );
-  if (!k4) return null;
+  if(!d)return null;
 
-  const d = k1
-    .addScaledVector(k2,2)
-    .addScaledVector(k3,2)
-    .add(k4)
-    .multiplyScalar(h/6);
-
-  return p.clone().add(d);
+  return p.clone().add(
+    a.addScaledVector(b,2)
+     .addScaledVector(c,2)
+     .add(d)
+     .multiplyScalar(step/6)
+  );
 }
 
-// Sledi silnici v eno smer
+/* =====================================================
+   SLEDENJE SILNIC
+   ===================================================== */
+
 function trace(seed,sign) {
 
-  const points = [seed.clone()];
-  let p = seed.clone();
+  const result=[seed.clone()];
+  let p=seed.clone();
 
-  for (let i=0; i<FIELD_MAX_STEPS; i++) {
+  for(let i=0;i<MAX_STEPS;i++) {
 
-    const next = advance(
-      p,
-      sign*FIELD_STEP_CM
-    );
+    const next=rk4(p,sign*STEP_CM);
 
-    if (!next) break;
+    if(!next)break;
 
-    const r = Math.hypot(next.x,next.z);
+    const radial=Math.hypot(next.x,next.z);
 
-    const wireDistance = Math.hypot(
-      r-COIL_RADIUS_CM,
+    const distanceToWire=Math.hypot(
+      radial-COIL_RADIUS_CM,
       next.y
     );
 
-    // Izognemo se neposredni bližini vodnika
-    if (wireDistance < 0.45) break;
+    if(distanceToWire<0.45)break;
 
-    // Omejitev prikaza
-    if (r > FIELD_MAX_RADIUS_CM) break;
-    if (next.y > FIELD_MAX_HEIGHT_CM) break;
+    if(radial>MAX_RADIUS_CM)break;
+    if(next.y>cfg.height)break;
 
-    // Prikažemo samo nad ravnino tuljave
-    if (next.y < 0) {
+    // Konec pri vodoravni ravnini
+    if(next.y<0) {
 
-      if (p.y > 0 && next.y !== p.y) {
-
-        const u = p.y/(p.y-next.y);
-
-        points.push(
-          p.clone().lerp(next,u)
-        );
+      if(p.y>=0) {
+        const t=p.y/(p.y-next.y);
+        result.push(p.clone().lerp(next,t));
       }
 
       break;
     }
 
-    points.push(next);
-    p = next;
+    result.push(next);
+    p=next;
   }
 
-  return points;
+  return result;
 }
 
-// Zgradi eno silnico z obema smerema
-function seedLine(r) {
+function createBaseLine(height) {
 
-  const seed = new THREE.Vector3(
-    r,
-    0.65,
+  // Ključna sprememba:
+  // začetne točke so okoli vodnika R=15 cm,
+  // ne v središču tuljave.
+  const seed=new THREE.Vector3(
+    COIL_RADIUS_CM,
+    height,
     0
   );
 
-  const back = trace(seed,-1).reverse();
-  const forward = trace(seed,1);
+  const backward=trace(seed,-1).reverse();
+  const forward=trace(seed,1);
 
-  return back.concat(
+  const points=backward.concat(
     forward.slice(1)
   );
+
+  return points.length>=8 ? points : null;
 }
 
-// Zasuk silnice okoli osi Y
-function rotateAroundY(p,phi) {
+function rotatePoint(p,angle) {
 
-  const c = Math.cos(phi);
-  const s = Math.sin(phi);
+  const c=Math.cos(angle);
+  const s=Math.sin(angle);
 
   return new THREE.Vector3(
     p.x*c-p.z*s,
@@ -748,160 +694,122 @@ function rotateAroundY(p,phi) {
   );
 }
 
-/* ============================================================
-   GRADNJA 3D MAGNETNEGA POLJA
-   ============================================================ */
+/* =====================================================
+   MAGNETNO POLJE — GEOMETRIJA
+   ===================================================== */
 
 function removeField() {
 
-  arrows = [];
+  movingArrows=[];
 
-  if (!oldGroup) return;
+  if(!fieldGroup)return;
 
-  oldGroup.traverse(obj => {
+  fieldGroup.traverse(obj=>{
+    obj.geometry?.dispose();
 
-    if (obj.geometry) {
-      obj.geometry.dispose();
-    }
+    if(obj.material) {
+      const mats=Array.isArray(obj.material)
+        ?obj.material:[obj.material];
 
-    if (obj.material) {
-
-      const materials = Array.isArray(obj.material)
-        ? obj.material
-        : [obj.material];
-
-      materials.forEach(m => m.dispose());
+      mats.forEach(m=>m.dispose?.());
     }
   });
 
-  field.object3D.remove(oldGroup);
-  oldGroup = null;
+  field.object3D.remove(fieldGroup);
+  fieldGroup=null;
 }
 
 function buildField() {
 
-  if (!sceneReady || !field.object3D) return;
+  if(!ready || !field.object3D)return;
 
   removeField();
 
-  if (!wire) {
-    wire = makeWire();
-  }
+  const group=new THREE.Group();
+  fieldGroup=group;
 
-  const group = new THREE.Group();
-  group.name = 'fieldGroup';
-
-  oldGroup = group;
-
-  const lineMat = new THREE.LineBasicMaterial({
-    color: FIELD_COLOR,
-    transparent: true,
-    opacity: 0.94
+  const lineMat=new THREE.LineBasicMaterial({
+    color:FIELD_COLOR,
+    transparent:true,
+    opacity:0.95
   });
 
-  const arrowMat = new THREE.MeshBasicMaterial({
-    color: ARROW_COLOR,
-    depthTest: true
+  const arrowMat=new THREE.MeshBasicMaterial({
+    color:ARROW_COLOR
   });
 
-  // Konica puščice je usmerjena v +Y
-  const arrowGeometry = new THREE.ConeGeometry(
-    0.50,
-    1.55,
-    6
+  // Deljena geometrija vseh puščic
+  const arrowGeom=new THREE.ConeGeometry(
+    0.45,1.4,6
   );
 
-  // Najprej izračunamo silnice v enem prerezu
-  const bases = FIELD_SEED_RADII_CM
-    .map(seedLine)
-    .filter(pts => pts.length >= 10);
+  const bases=FIELD_SEED_HEIGHTS_CM
+    .map(createBaseLine)
+    .filter(Boolean);
 
-  // Nato jih razporedimo okoli cele tuljave
-  for (let a=0; a<cfg.planes; a++) {
+  for(let a=0;a<cfg.planes;a++) {
 
-    const phi = 2*Math.PI*a/cfg.planes;
+    const phi=2*Math.PI*a/cfg.planes;
 
-    for (const base of bases) {
+    for(const base of bases) {
 
-      const points = base.map(
-        p => rotateAroundY(p,phi)
+      const pts=base.map(p=>rotatePoint(p,phi));
+
+      const curve=new THREE.CatmullRomCurve3(
+        pts,false,"centripetal"
       );
 
-      const curve = new THREE.CatmullRomCurve3(
-        points,
-        false,
-        'centripetal'
+      const samples=curve.getSpacedPoints(
+        Math.max(40,Math.min(160,pts.length))
       );
 
-      const sampled = curve.getSpacedPoints(
-        Math.max(
-          32,
-          Math.min(180,points.length)
-        )
-      );
+      const geom=new THREE.BufferGeometry()
+        .setFromPoints(samples);
 
-      // Turkizna silnica
-      const lineGeometry =
-        new THREE.BufferGeometry()
-          .setFromPoints(sampled);
+      group.add(new THREE.Line(geom,lineMat));
 
-      group.add(
-        new THREE.Line(
-          lineGeometry,
-          lineMat
-        )
-      );
+      // Dve puščici na silnico
+      for(let k=0;k<2;k++) {
 
-      // Dve animirani puščici na silnico
-      for (let k=0; k<2; k++) {
-
-        const head = new THREE.Mesh(
-          arrowGeometry,
-          arrowMat
+        const arrow=new THREE.Mesh(
+          arrowGeom,arrowMat
         );
 
-        group.add(head);
+        group.add(arrow);
 
-        arrows.push({
-          head,
-          curve,
-          phase:k/2+(a%3)*0.11
+        movingArrows.push({
+          mesh:arrow,
+          curve:curve,
+          phase:k/2+(a%4)*0.07
         });
       }
     }
   }
 
-  // Oranžen obroč — položaj fizične tuljave
-  const ringPts = [];
+  // Oranžen referenčni obroč R=15 cm
+  const ringPts=[];
 
-  for (let i=0; i<=120; i++) {
+  for(let i=0;i<120;i++) {
+    const a=2*Math.PI*i/120;
 
-    const t = 2*Math.PI*i/120;
-
-    ringPts.push(
-      new THREE.Vector3(
-        COIL_RADIUS_CM*Math.cos(t),
-        0,
-        COIL_RADIUS_CM*Math.sin(t)
-      )
-    );
+    ringPts.push(new THREE.Vector3(
+      COIL_RADIUS_CM*Math.cos(a),
+      0,
+      COIL_RADIUS_CM*Math.sin(a)
+    ));
   }
 
-  const ringGeometry =
-    new THREE.BufferGeometry()
-      .setFromPoints(ringPts);
-
-  const ringMaterial =
-    new THREE.LineBasicMaterial({
-      color:0xffa34d,
-      transparent:true,
-      opacity:0.8
-    });
+  const ringGeom=new THREE.BufferGeometry()
+    .setFromPoints(ringPts);
 
   group.add(
-    new THREE.Line(
-      ringGeometry,
-      ringMaterial
+    new THREE.LineLoop(
+      ringGeom,
+      new THREE.LineBasicMaterial({
+        color:COIL_COLOR,
+        transparent:true,
+        opacity:0.85
+      })
     )
   );
 
@@ -912,511 +820,322 @@ function buildField() {
 
 function applyFieldScale() {
 
-  if (!field.object3D) return;
+  const factor=SCENE_UNITS_PER_CM*cfg.cal;
 
-  field.object3D.scale.setScalar(
-    SCENE_UNITS_PER_CM*cfg.cal
-  );
-
+  field.object3D.scale.setScalar(factor);
   field.object3D.visible=cfg.showField;
 }
 
-/* ============================================================
-   NASTAVITVE IN SLIDERJI
-   ============================================================ */
+/* =====================================================
+   ANIMACIJA
+   ===================================================== */
 
-function updateLabels() {
+function animate(time) {
 
-  $('calVal').textContent =
-    cfg.cal.toFixed(2)+'×';
+  requestAnimationFrame(animate);
 
-  for (const a of ['x','y','z']) {
-    $(a+'Val').textContent =
-      cfg[a]+' cm';
+  const dt=lastFrame
+    ?Math.min((time-lastFrame)/1000,0.06)
+    :0;
+
+  lastFrame=time;
+
+  if(!found || !cfg.showField || !cfg.showArrows) {
+
+    for(const item of movingArrows)
+      item.mesh.visible=false;
+
+    return;
   }
 
-  $('scaleVal').textContent =
-    cfg.scale+'×';
+  const sign=cfg.reverse?-1:1;
 
-  $('planesVal').textContent =
-    cfg.planes;
+  animationTime+=dt*cfg.speed*sign;
 
-  $('speedVal').textContent =
-    cfg.speed.toFixed(3);
+  for(const item of movingArrows) {
 
-  $('directionVal').textContent =
-    cfg.direction>0 ? '+1' : '−1';
+    const u=(
+      (animationTime+item.phase)%1+1
+    )%1;
+
+    const pos=item.curve.getPointAt(u);
+
+    const tangent=item.curve
+      .getTangentAt(u)
+      .normalize();
+
+    if(sign<0)tangent.negate();
+
+    item.mesh.position.copy(pos);
+
+    item.mesh.quaternion.setFromUnitVectors(
+      UP,tangent
+    );
+
+    item.mesh.visible=true;
+  }
 }
+
+requestAnimationFrame(animate);
+
+/* =====================================================
+   NASTAVITVE
+   ===================================================== */
 
 function apply() {
 
-  cfg.cal = Math.max(
-    0.5,
-    Math.min(2,cfg.cal)
+  cfg.cal=Math.max(0.5,Math.min(2,cfg.cal));
+  cfg.scale=Math.max(10,Math.min(30,cfg.scale));
+
+  cfg.planes=Math.max(
+    4,Math.min(16,Math.round(cfg.planes/2)*2)
   );
 
-  cfg.scale = Math.max(
-    10,
-    Math.min(30,cfg.scale)
-  );
+  const k=SCENE_UNITS_PER_CM*cfg.cal;
 
-  cfg.planes = Math.max(
-    4,
-    Math.min(
-      16,
-      Math.round(cfg.planes/2)*2
-    )
-  );
+  const px=cfg.x*k;
+  const py=cfg.y*k;
+  const pz=cfg.z*k;
 
-  cfg.speed = Math.max(
-    0,
-    Math.min(0.6,cfg.speed)
-  );
-
-  cfg.direction =
-    cfg.direction<0 ? -1 : 1;
-
-  const k =
-    SCENE_UNITS_PER_CM*cfg.cal;
-
-  const pos = {
-    x:cfg.x*k,
-    y:cfg.y*k,
-    z:cfg.z*k
-  };
-
-  // Premik skupnega izhodišča
-  origin.setAttribute('position',pos);
-
-  // Povečava koordinatnega sistema
-  axes.setAttribute('scale',{
-    x:cfg.scale,
-    y:cfg.scale,
-    z:cfg.scale
-  });
-
-  origin.object3D?.position.set(
-    pos.x,
-    pos.y,
-    pos.z
-  );
-
-  axes.object3D?.scale.setScalar(
-    cfg.scale
-  );
+  origin.object3D.position.set(px,py,pz);
+  axes.object3D.scale.setScalar(cfg.scale);
 
   applyFieldScale();
 
-  // Osveži vrednosti drsnikov
-  for (const key of [
-    'x','y','z','cal',
-    'scale','planes','speed','direction'
+  for(const key of [
+    "x","y","z","cal","scale",
+    "planes","speed","height"
   ]) {
     $(key).value=cfg[key];
   }
 
-  $('showField').checked =
-    cfg.showField;
+  $("showField").checked=cfg.showField;
+  $("showArrows").checked=cfg.showArrows;
+  $("reverse").checked=cfg.reverse;
 
-  $('showArrows').checked =
-    cfg.showArrows;
+  $("xVal").textContent=cfg.x+" cm";
+  $("yVal").textContent=cfg.y+" cm";
+  $("zVal").textContent=cfg.z+" cm";
+  $("calVal").textContent=cfg.cal.toFixed(2)+"×";
+  $("scaleVal").textContent=cfg.scale+"×";
+  $("planesVal").textContent=cfg.planes;
+  $("speedVal").textContent=cfg.speed.toFixed(3);
+  $("heightVal").textContent=cfg.height+" cm";
 
-  updateLabels();
+  $("readout").textContent=
+    `Offset (${cfg.x},${cfg.y},${cfg.z}) cm · `+
+    `R=${COIL_RADIUS_CM} cm`;
 
-  $('readout').textContent =
-    `Izhodišče (${cfg.x}, ${cfg.y}, ${cfg.z}) cm · ` +
-    `R = ${COIL_RADIUS_CM} cm · ` +
-    `faktor ${cfg.cal.toFixed(2)}×`;
-
-  // Shrani nastavitve
   try {
     localStorage.setItem(
-      'coilARv10',
+      "coilARv11",
       JSON.stringify(cfg)
     );
-  } catch(e) {}
+  }catch(e){}
 }
 
-// Običajni drsniki
-for (const key of [
-  'x','y','z','cal',
-  'scale','speed','direction'
+for(const key of [
+  "x","y","z","cal","scale","speed"
 ]) {
 
-  $(key).addEventListener('input',() => {
-
+  $(key).addEventListener("input",()=>{
     cfg[key]=Number($(key).value);
-
     apply();
   });
 }
 
-// Število smeri zahteva ponoven izračun geometrije
-$('planes').addEventListener('change',() => {
+for(const key of ["planes","height"]) {
 
-  cfg.planes=Number(
-    $('planes').value
-  );
+  $(key).addEventListener("change",()=>{
+    cfg[key]=Number($(key).value);
+    apply();
+    buildField();
+  });
+}
 
-  apply();
-  buildField();
-});
+for(const key of [
+  "showField","showArrows","reverse"
+]) {
 
-// Vklop polja
-$('showField').addEventListener('change',() => {
+  $(key).addEventListener("change",()=>{
+    cfg[key]=$(key).checked;
+    apply();
+  });
+}
 
-  cfg.showField=
-    $('showField').checked;
-
-  apply();
-});
-
-// Vklop animiranih puščic
-$('showArrows').addEventListener('change',() => {
-
-  cfg.showArrows=
-    $('showArrows').checked;
-
-  apply();
-});
-
-// Ponastavitev
-$('reset').addEventListener('click',() => {
-
+$("reset").addEventListener("click",()=>{
   cfg={...DEFAULTS};
-
   apply();
   buildField();
 });
 
-// Odpiranje nastavitev
-$('toggle').addEventListener('click',() => {
-
-  $('panel').classList.toggle('open');
+$("toggle").addEventListener("click",()=>{
+  $("panel").classList.toggle("open");
 });
 
-/* ============================================================
-   ANIMACIJA PUŠČIC
-   ============================================================ */
+/* =====================================================
+   MARKER
+   ===================================================== */
 
-// Animacija uporablja A-Frame tick, zato ni treba
-// ustvarjati drugega render loopa.
-
-AFRAME.registerComponent(
-  'field-animation',
-  {
-    tick:function(time,dt) {
-
-      if (
-        !cfg.showField ||
-        !cfg.showArrows ||
-        !found ||
-        !arrows.length
-      ) {
-
-        for (const item of arrows) {
-          item.head.visible=false;
-        }
-
-        return;
-      }
-
-      if (Number.isFinite(dt)) {
-
-        animPhase +=
-          Math.min(dt/1000,0.08) *
-          cfg.speed *
-          cfg.direction;
-      }
-
-      for (const item of arrows) {
-
-        // Ciklično gibanje med 0 in 1
-        const u = (
-          (animPhase+item.phase)%1+1
-        )%1;
-
-        const pos =
-          item.curve.getPointAt(u);
-
-        const tan =
-          item.curve.getTangentAt(u)
-            .normalize();
-
-        if (cfg.direction<0) {
-          tan.negate();
-        }
-
-        item.head.position.copy(pos);
-
-        item.head.quaternion
-          .setFromUnitVectors(UP,tan);
-
-        item.head.visible=true;
-      }
-    }
-  }
-);
-
-scene.setAttribute(
-  'field-animation',
-  ''
-);
-
-/* ============================================================
-   AR MARKER IN ZAGON
-   ============================================================ */
-
-marker.addEventListener('markerFound',() => {
-
+marker.addEventListener("markerFound",()=>{
   found=true;
-
-  status.textContent =
-    '✓ Marker ID 5 zaznan — Biot–Savart';
+  status.textContent="✓ Marker ID 5 zaznan";
 });
 
-marker.addEventListener('markerLost',() => {
-
+marker.addEventListener("markerLost",()=>{
   found=false;
-
-  status.textContent =
-    'Marker izgubljen — pokaži ID 5';
+  status.textContent="Marker izgubljen";
 });
 
-function initScene() {
+function init() {
 
-  if (initialized) return;
+  if(initialized)return;
 
   initialized=true;
-  sceneReady=true;
+  ready=true;
 
+  createWire();
   apply();
   buildField();
 
-  if (!found) {
-
-    status.textContent =
-      'Marker v10 — usmeri telefon na ID 5';
-  }
+  status.textContent=
+    "Coil AR v11 — usmeri telefon na ID 5";
 }
 
-scene.addEventListener(
-  'loaded',
-  initScene
-);
+scene.addEventListener("loaded",init);
 
-if (scene.hasLoaded) {
-  initScene();
-}
+if(scene.hasLoaded)init();
 
-// Diagnostika napak
-window.addEventListener('error',e => {
-
-  status.textContent =
-    'Napaka: '+(e.message||'neznana');
-});
-
-window.addEventListener('unhandledrejection',e => {
-
-  status.textContent =
-    'Napaka: '+
-    String(e.reason||'neznana');
-});
-
-/* ============================================================
-   IZBIRA KAMERE
-   ============================================================ */
+/* =====================================================
+   KAMERE
+   ===================================================== */
 
 async function cameras() {
 
-  const select=$('cameraSelect');
+  const select=$("cameraSelect");
 
   const chosen=
-    sessionStorage.getItem('coilCameraId')||'';
+    sessionStorage.getItem("coilCameraId")||"";
 
   select.replaceChildren(
-    new Option(
-      'Privzeta zadnja kamera',
-      ''
-    )
+    new Option("Privzeta zadnja kamera","")
   );
 
-  if (!navigator.mediaDevices?.enumerateDevices) {
-    return;
-  }
+  if(!navigator.mediaDevices?.enumerateDevices)return;
 
   try {
-
-    const items=(
+    const devices=(
       await navigator.mediaDevices.enumerateDevices()
-    ).filter(d => d.kind==='videoinput');
+    ).filter(d=>d.kind==="videoinput");
 
-    items.forEach((d,i) => {
-
-      select.add(
-        new Option(
-          d.label||`Kamera ${i+1}`,
-          d.deviceId
-        )
-      );
+    devices.forEach((d,i)=>{
+      select.add(new Option(
+        d.label||`Kamera ${i+1}`,
+        d.deviceId
+      ));
     });
 
-    if (
-      [...select.options].some(
-        o => o.value===chosen
-      )
-    ) {
+    if([...select.options].some(o=>o.value===chosen))
       select.value=chosen;
-    }
 
-  } catch(e) {
-
-    console.warn('Kamere:',e);
+  }catch(e){
+    console.warn(e);
   }
 }
 
-$('refreshCameras').addEventListener(
-  'click',
-  cameras
+$("refreshCameras").addEventListener(
+  "click",cameras
 );
 
-$('reloadCamera').addEventListener(
-  'click',
-  () => {
+$("reloadCamera").addEventListener("click",()=>{
 
-    const id=$('cameraSelect').value;
+  const id=$("cameraSelect").value;
 
-    if (id) {
-      sessionStorage.setItem(
-        'coilCameraId',
-        id
-      );
-    } else {
-      sessionStorage.removeItem(
-        'coilCameraId'
-      );
-    }
+  if(id)
+    sessionStorage.setItem("coilCameraId",id);
+  else
+    sessionStorage.removeItem("coilCameraId");
 
-    // Ustavi prejšnji video tok
-    [...document.querySelectorAll('video')]
-      .forEach(v => {
-        v.srcObject?.getTracks()
-          .forEach(t => t.stop());
-      });
+  document.querySelectorAll("video").forEach(v=>{
+    v.srcObject?.getTracks?.().forEach(t=>t.stop());
+  });
 
-    location.reload();
-  }
-);
+  location.reload();
+});
 
-/* ============================================================
-   VIDEO PRIKAZ IN DIAGNOSTIKA
-   ============================================================ */
+/* =====================================================
+   PRIKAZ KAMERE — ohranjen način iz v9
+   ===================================================== */
 
-function diagnostics() {
+function layout() {
 
   const video=[
-    ...document.querySelectorAll('video')
-  ].find(v => v.srcObject)
-    ||document.querySelector('video');
+    ...document.querySelectorAll("video")
+  ].find(v=>v.srcObject)
+    ||document.querySelector("video");
 
-  const canvas=
-    scene.querySelector('canvas');
+  const canvas=scene.querySelector("canvas");
 
-  if (video) {
+  if(video) {
 
-    video.setAttribute(
-      'playsinline',
-      ''
-    );
-
+    video.setAttribute("playsinline","");
     video.muted=true;
 
-    const videoStyle={
-      position:'fixed',
-      top:'0',
-      left:'0',
-      width:'100vw',
-      height:'100dvh',
-      objectFit:'cover',
-      transform:'none',
-      zIndex:'0'
-    };
-
-    for (
-      const [key,val] of
-      Object.entries(videoStyle)
-    ) {
+    for(const [key,value] of Object.entries({
+      position:"fixed",
+      top:"0",
+      left:"0",
+      width:"100vw",
+      height:"100dvh",
+      objectFit:"cover",
+      transform:"none",
+      zIndex:"0"
+    })) {
 
       video.style.setProperty(
-        key.replace(
-          /[A-Z]/g,
-          c=>'-'+c.toLowerCase()
-        ),
-        val,
-        'important'
+        key.replace(/[A-Z]/g,c=>"-"+c.toLowerCase()),
+        value,
+        "important"
       );
     }
   }
 
-  if (scene.renderer) {
-
-    scene.renderer.setClearColor(0,0);
+  if(scene.renderer) {
+    scene.renderer.setClearColor(0x000000,0);
     scene.renderer.setClearAlpha(0);
   }
 
-  if (canvas) {
-
+  if(canvas) {
     canvas.style.setProperty(
-      'background',
-      'transparent',
-      'important'
+      "background",
+      "transparent",
+      "important"
     );
   }
 
-  const track=
-    video?.srcObject
-      ?.getVideoTracks?.()[0];
+  const track=video?.srcObject
+    ?.getVideoTracks?.()[0];
 
-  diag.textContent =
-    `Video ${
-      video
-      ? `${video.videoWidth}×${video.videoHeight}`
-      : 'ni'
-    } · ${
-      video?.paused
-      ? 'premor'
-      : 'predvaja'
-    } · marker ${
-      found ? 'DA':'NE'
-    } · kamera ${
-      track?.label||'privzeta'
-    }${
-      window.cameraFallback
-      ? ' · rezerva '+window.cameraFallback
-      : ''
-    }`;
+  diag.textContent=
+    `Video ${video?.videoWidth||0}×${video?.videoHeight||0}`+
+    ` · ${video?.paused?"premor":"predvaja"}`+
+    ` · marker ${found?"DA":"NE"}`+
+    ` · ${track?.label||"privzeta kamera"}`;
 }
 
-window.addEventListener(
-  'resize',
-  diagnostics
-);
+window.addEventListener("resize",layout);
 
-setInterval(
-  diagnostics,
-  950
-);
-
-setTimeout(
-  cameras,
-  1800
-);
+setInterval(layout,900);
+setTimeout(cameras,1800);
 
 apply();
-diagnostics();
+layout();
+
+window.addEventListener("error",e=>{
+  status.textContent="Napaka: "+e.message;
+});
 
 })();
 </script>
-
 </body>
 </html>
