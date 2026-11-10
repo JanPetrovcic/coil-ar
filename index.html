@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Coil AR — Marker v7</title>
+<title>Coil AR — Marker v8</title>
 <!-- IZBIRA KAMERE: prestrežemo samo AR.js zahtevo za getUserMedia.
      Brskalnik lahko izbrano fizično lečo zavrne; v tem primeru privzeta kamera. -->
 <script>
@@ -51,7 +51,7 @@ a-scene canvas{background:transparent!important}
 </style>
 </head>
 <body>
-<div id="hud"><div id="status">Marker v7 — zaganjam kamero …</div><div id="diag">Čakam na kamero …</div></div>
+<div id="hud"><div id="status">Marker v8 — zaganjam kamero …</div><div id="diag">Čakam na kamero …</div></div>
 <a-scene embedded vr-mode-ui="enabled:false" device-orientation-permission-ui="enabled:false"
  renderer="alpha:true;antialias:true"
  arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;sourceWidth:1280;sourceHeight:960;displayWidth:1280;displayHeight:960;canvasWidth:960;canvasHeight:720;maxDetectionRate:30;">
@@ -70,12 +70,11 @@ a-scene canvas{background:transparent!important}
       <a-text value="Z" position="0.012 0.006 0.132" rotation="-90 0 0" color="#2b9cff" width="0.09" align="center" side="double"></a-text>
     </a-entity>
   </a-entity>
-  <!-- Samostojna kalibracijska črta: začne se v središču MARKERJA,
-       ne v premaknjenem izhodišču; dolžino ji določa CAL_FACTOR. -->
+  <!-- Rumena črta prikazuje 10 cm glede na širino 35-mm markerja. -->
   <a-entity id="ruler">
-   <a-cylinder id="rulerbar" position="0.05 0.004 0" rotation="0 0 -90" radius="0.0015" height="0.10" color="#ffdd00" material="shader:flat"></a-cylinder>
+   <a-cylinder id="rulerbar" position="0.5 0.004 0" rotation="0 0 -90" radius="0.015" height="1.00" color="#ffdd00" material="shader:flat"></a-cylinder>
    <a-sphere radius="0.005" color="#ffdd00" material="shader:flat"></a-sphere>
-   <a-text id="rulerlabel" value="REFERENCA 10 cm" position="0.06 0.012 0" color="#ffdd00" width="0.15" side="double"></a-text>
+   <a-text id="rulerlabel" value="10 cm" position="0.60 0.10 0" color="#ffdd00" width="1.5" side="double"></a-text>
   </a-entity>
  </a-marker>
  <a-entity camera></a-entity>
@@ -83,15 +82,15 @@ a-scene canvas{background:transparent!important}
 <div id="settings">
  <button id="toggle" type="button">⚙ Nastavitve / kalibracija</button>
  <div id="panel">
-  <strong>Coil AR v7 · Barcode ID 5 · 35 mm</strong>
-  <p class="muted">Premiki X, Y, Z so v centimetrih glede na marker. Rumena črta predstavlja 10 cm; primerjaj jo z ravnilom ob tuljavi. Kalibracija je približna.</p>
+  <strong>Coil AR v8 · Barcode ID 5 · 35 mm</strong>
+  <p class="muted">Premiki X, Y, Z so v centimetrih glede na marker. Rumena črta predstavlja 10 cm. Če ni približno 2,86-krat širša od 35-mm markerja, popravi kalibracijski faktor. To je eksperimentalna pretvorba merila.</p>
   <label>Kamera (ime objektiva je odvisno od telefona)</label>
   <select id="cameraSelect"><option value="">Privzeta zadnja kamera</option></select>
   <button id="reloadCamera" type="button">Uporabi izbrano kamero ↻</button>
   <button id="refreshCameras" type="button">Osveži seznam</button>
   <p class="muted">Preklop ponovno naloži stran. Če brskalnik ne omogoči izbrane kamere, se uporabi privzeta.</p>
-  <label>Kalibracijski faktor: <b class="reading" id="calVal">1.00×</b></label>
-  <input id="cal" type="range" min="0.1" max="30" step="0.1" value="1">
+  <label>Korekcija merila: <b class="reading" id="calVal">1.00×</b></label>
+  <input id="cal" type="range" min="0.5" max="2" step="0.05" value="1">
   <label>OFFSET X: <b class="reading" id="xVal">0 cm</b></label>
   <input id="x" type="range" min="-100" max="100" step="1" value="0">
   <label>OFFSET Y: <b class="reading" id="yVal">0 cm</b></label>
@@ -101,19 +100,22 @@ a-scene canvas{background:transparent!important}
   <label>AXIS SCALE: <b class="reading" id="scaleVal">10×</b></label>
   <input id="scale" type="range" min="10" max="30" step="1" value="10">
   <button id="reset" type="button">Ponastavi kalibracijo</button>
-  <p id="readout" class="muted"></p>
+  <p class="muted">Za test najprej nastavi X = 3,5 cm: izhodišče naj se premakne približno za eno širino markerja. Če ne, sporoči rezultat. Povečava osi ne vpliva na odmik.</p><p id="readout" class="muted"></p>
  </div>
 </div>
 <script>
 /* ============================================================
    GLAVNE NASTAVITVE ZA NASLEDNJE SPREMEMBE KODE
    MARKER_SIZE_M: 35 mm, ne spreminjaj brez novega markerja.
-   Offseti so v cm, CAL_FACTOR je korekcija prikazanega merila.
+   Offseti so v cm, korekcija merila je približna; osnovna pretvorba je 1 enota na 3,5 cm.
    AXIS_SCALE najmanj 10. UI omogoča preizkus brez GitHub sprememb.
    ============================================================ */
 const DEFAULTS={x:0,y:0,z:-20,cal:1,scale:10};
-const MARKER_SIZE_M=0.035;
+const MARKER_SIZE_CM=3.5; // fizična širina natisnjenega markerja (35 mm)
 const REFERENCE_LENGTH_CM=10;
+// Na tem AR.js prikazu merimo položaje v približnih enotah širine markerja.
+// 1 enota je približno 3,5 cm, NE 1 meter. To preveri z rumeno črto.
+const SCENE_UNITS_PER_CM=1/MARKER_SIZE_CM;
 /* ============================================================ */
 (function(){
  'use strict';
@@ -127,30 +129,32 @@ const REFERENCE_LENGTH_CM=10;
  const $=id=>document.getElementById(id);
  let found=false,loaded=false;
  let cfg={...DEFAULTS};
- try { const saved=JSON.parse(localStorage.getItem('coilARv7')); if(saved && typeof saved==='object') for(const k of Object.keys(DEFAULTS)) if(Number.isFinite(Number(saved[k]))) cfg[k]=Number(saved[k]); } catch(e){}
+ try { const saved=JSON.parse(localStorage.getItem('coilARv8')); if(saved && typeof saved==='object') for(const k of Object.keys(DEFAULTS)) if(Number.isFinite(Number(saved[k]))) cfg[k]=Number(saved[k]); } catch(e){}
  function apply(){
-   cfg.cal=Math.max(.1,Math.min(30,cfg.cal)); cfg.scale=Math.max(10,Math.min(30,cfg.scale));
+   cfg.cal=Math.max(.5,Math.min(2,cfg.cal)); cfg.scale=Math.max(10,Math.min(30,cfg.scale));
    for(const k of ['x','y','z','cal','scale']) $(k).value=cfg[k];
-   const k=cfg.cal/100;
+   // Pretvorba centimetrov v približne enote AR.js prizora.
+   // cfg.cal je dodatna korekcija, če primerjava z ravnilom pokaže odstopanje.
+   const k=SCENE_UNITS_PER_CM*cfg.cal;
    const pos={x:cfg.x*k,y:cfg.y*k,z:cfg.z*k};
    origin.setAttribute('position',pos);
    axes.setAttribute('scale',{x:cfg.scale,y:cfg.scale,z:cfg.scale});
-   ruler.setAttribute('scale',{x:cfg.cal,y:cfg.cal,z:cfg.cal});
+   ruler.setAttribute('scale',{x:REFERENCE_LENGTH_CM*k,y:REFERENCE_LENGTH_CM*k,z:REFERENCE_LENGTH_CM*k});
    if(origin.object3D) origin.object3D.position.set(pos.x,pos.y,pos.z);
    if(axes.object3D) axes.object3D.scale.setScalar(cfg.scale);
-   if(ruler.object3D) ruler.object3D.scale.setScalar(cfg.cal);
-   $('calVal').textContent=cfg.cal.toFixed(1)+'×';
+   if(ruler.object3D) ruler.object3D.scale.setScalar(REFERENCE_LENGTH_CM*k);
+   $('calVal').textContent=cfg.cal.toFixed(2)+'×';
    for(const k0 of ['x','y','z']) $(k0+'Val').textContent=cfg[k0]+' cm';
    $('scaleVal').textContent=cfg.scale+'×';
-   $('readout').textContent=`Uporabljen položaj v prizoru: (${pos.x.toFixed(3)}, ${pos.y.toFixed(3)}, ${pos.z.toFixed(3)}). Rumena črta: ${REFERENCE_LENGTH_CM} cm × ${cfg.cal.toFixed(1)} (kalibracija).`;
-   try{localStorage.setItem('coilARv7',JSON.stringify(cfg));}catch(e){}
+   $('readout').textContent=`Offset v scenskih enotah: (${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}). 1 enota ≈ ${MARKER_SIZE_CM} cm. Rumena črta = ${REFERENCE_LENGTH_CM} cm × ${cfg.cal.toFixed(2)}.`;
+   try{localStorage.setItem('coilARv8',JSON.stringify(cfg));}catch(e){}
  }
  for(const key of ['x','y','z','cal','scale']) $(key).addEventListener('input',()=>{cfg[key]=Number($(key).value);apply();});
  $('reset').addEventListener('click',()=>{cfg={...DEFAULTS};apply();});
  $('toggle').addEventListener('click',()=>{$('panel').classList.toggle('open');});
  marker.addEventListener('markerFound',()=>{found=true;apply();status.textContent='✓ Marker ID 5 zaznan';});
  marker.addEventListener('markerLost',()=>{found=false;status.textContent='Marker izgubljen — pokaži ID 5';});
- scene.addEventListener('loaded',()=>{loaded=true;apply();if(!found)status.textContent='Marker v7 — usmeri telefon na ID 5';});
+ scene.addEventListener('loaded',()=>{loaded=true;apply();if(!found)status.textContent='Marker v8 — usmeri telefon na ID 5';});
  if(scene.hasLoaded){loaded=true;apply();}
  window.addEventListener('error',e=>{status.textContent='Napaka: '+(e.message||'neznana');});
  window.addEventListener('unhandledrejection',e=>{status.textContent='Napaka: '+String(e.reason||'neznana');});
@@ -187,7 +191,7 @@ const REFERENCE_LENGTH_CM=10;
    const settings=track?.getSettings?.()||{};
    const actual=video?`${video.videoWidth||0}×${video.videoHeight||0}`:'ni';
    const deviceInfo=track?.label||'privzeta';
-   diag.textContent=`Video ${actual} · ${video?.paused?'premor':'predvaja'} · ID 5 ${found?'DA':'NE'} · kalibracija ${cfg.cal.toFixed(1)}× · kamera ${deviceInfo}${window._cameraFallback?' · fallback: '+window._cameraFallback:''}`;
+   diag.textContent=`Video ${actual} · ${video?.paused?'premor':'predvaja'} · ID 5 ${found?'DA':'NE'} · kalibracija ${cfg.cal.toFixed(2)}× · kamera ${deviceInfo}${window._cameraFallback?' · fallback: '+window._cameraFallback:''}`;
  }
  window.addEventListener('resize',layout);
  setInterval(layout,900);
