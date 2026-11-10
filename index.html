@@ -1,64 +1,97 @@
 <!doctype html>
 <html lang="sl">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
-<title>Coil AR — Marker v3</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Coil AR — Marker v4</title>
 <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 <style>
- html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
- /* AR.js starts its webcam. Show its video in the entire viewport. */
- video,video.arjs-video,body>video{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;object-fit:cover!important;max-width:none!important;max-height:none!important;transform:none!important;margin:0!important;display:block!important;opacity:1!important;visibility:visible!important;z-index:0!important}
- a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;background:transparent!important;z-index:1!important}
- a-scene canvas{background:transparent!important}
- .a-enter-vr,.a-enter-ar{display:none!important}
- #hud{position:fixed;z-index:9999;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;pointer-events:none;text-align:center;color:white}
- #status,#diag{padding:10px;border-radius:12px;background:rgba(0,0,0,.78);margin-bottom:7px}
- #diag{font-size:12px;line-height:1.4;overflow-wrap:anywhere;color:#bfe9ff}
- #tip{position:fixed;z-index:9999;bottom:calc(10px + env(safe-area-inset-bottom));left:10px;right:10px;background:rgba(0,0,0,.75);color:white;border-radius:12px;padding:10px;text-align:center;font:13px Arial;pointer-events:none}
+  html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
+  /* Enaka postavitev kamere kot v različici Marker v3, kjer je video deloval. */
+  video,video.arjs-video,body>video{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100vh!important;object-fit:cover!important;max-width:none!important;max-height:none!important;transform:none!important;margin:0!important;display:block!important;opacity:1!important;visibility:visible!important;z-index:0!important}
+  a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100vh!important;background:transparent!important;z-index:1!important}
+  a-scene canvas{background:transparent!important}
+  .a-enter-vr,.a-enter-ar{display:none!important}
+  #hud{position:fixed;z-index:9999;top:calc(10px + env(safe-area-inset-top));left:10px;right:10px;color:#fff;text-align:center;pointer-events:none}
+  #status,#diag{background:rgba(0,0,0,.76);border-radius:11px;padding:9px;margin-bottom:6px}
+  #status{font-size:15px;font-weight:bold} #diag{font-size:11px;color:#bbebff;line-height:1.4}
+  #tip{position:fixed;z-index:9999;bottom:calc(10px + env(safe-area-inset-bottom));left:10px;right:10px;color:white;background:rgba(0,0,0,.7);border-radius:11px;padding:10px;text-align:center;font-size:12px;pointer-events:none}
 </style>
 </head>
 <body>
-<div id="hud"><div id="status">Marker v3 — zaganjam AR.js …</div><div id="diag">Čakam na kamero …</div></div>
-<div id="tip">Barcode 3 × 3 · ID 5 · 6 × 6 cm. Usmeri kamero na zadnjo stran tuljave.</div>
-<!-- Static scene: no click handler and no dynamic scene creation. -->
+<div id="hud"><div id="status">Marker v4 — zaganjam kamero …</div><div id="diag">Čakam na video …</div></div>
+<div id="tip">Barcode 3×3 · ID 5 · 35×35 mm | X rdeča · Y zelena (iz markerja) · Z modra</div>
+
 <a-scene embedded vr-mode-ui="enabled:false" device-orientation-permission-ui="enabled:false"
- renderer="alpha:true;antialias:true" arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;">
-  <a-marker id="target" type="barcode" value="5" size="0.06" emitevents="true" smooth="true" smooth-count="5">
-   <a-box position="0 0.012 0" width="0.012" height="0.024" depth="0.012" color="yellow"></a-box>
-   <a-cylinder position="0.028 0.002 0" radius="0.0015" height="0.056" rotation="0 0 -90" color="red"></a-cylinder>
-   <a-cylinder position="0 0.028 0" radius="0.0015" height="0.056" color="lime"></a-cylinder>
-   <a-cylinder position="0 0.002 0.028" radius="0.0015" height="0.056" rotation="90 0 0" color="dodgerblue"></a-cylinder>
+         renderer="alpha:true;antialias:true" arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;">
+  <a-marker id="target" type="barcode" value="5" size="0.035" emitevents="true" smooth="true" smooth-count="5" smooth-tolerance="0.01" smooth-threshold="2">
+    <!-- Vsa vizualizacija je otrok tega elementa: premaknemo ga z OFFSET_X/Y/Z. -->
+    <a-entity id="coil-origin">
+      <!-- Opazna bela krogla + črn sredinski obroč označujeta izbrano izhodišče. -->
+      <a-sphere radius="0.008" color="#ffffff" material="shader:flat;side:double"></a-sphere>
+      <a-torus radius="0.014" radius-tubular="0.0018" rotation="90 0 0" color="#ffffff" material="shader:flat"></a-torus>
+      <!-- X = rdeča, smer +X -->
+      <a-cylinder position="0.05 0 0" radius="0.0027" height="0.10" rotation="0 0 -90" color="#ff3030" material="shader:flat"></a-cylinder>
+      <a-cone position="0.107 0 0" radius-bottom="0.008" radius-top="0" height="0.015" rotation="0 0 -90" color="#ff3030" material="shader:flat"></a-cone>
+      <a-text value="X" position="0.124 0.009 0" color="#ff3030" align="center" width="0.09" side="double"></a-text>
+      <!-- Y = zelena, smer +Y, pravokotno na marker -->
+      <a-cylinder position="0 0.05 0" radius="0.0027" height="0.10" color="#2bff60" material="shader:flat"></a-cylinder>
+      <a-cone position="0 0.107 0" radius-bottom="0.008" radius-top="0" height="0.015" color="#2bff60" material="shader:flat"></a-cone>
+      <a-text value="Y" position="0.012 0.129 0" color="#2bff60" align="center" width="0.09" side="double"></a-text>
+      <!-- Z = modra, smer +Z, v ravnini markerja -->
+      <a-cylinder position="0 0 0.05" radius="0.0027" height="0.10" rotation="90 0 0" color="#2b9cff" material="shader:flat"></a-cylinder>
+      <a-cone position="0 0 0.107" radius-bottom="0.008" radius-top="0" height="0.015" rotation="90 0 0" color="#2b9cff" material="shader:flat"></a-cone>
+      <a-text value="Z" position="0.012 0.006 0.132" color="#2b9cff" align="center" rotation="-90 0 0" width="0.09" side="double"></a-text>
+    </a-entity>
   </a-marker>
   <a-entity camera></a-entity>
 </a-scene>
+
 <script>
+/* =====================================================================
+   NASTAVITVE — SPREMINJAJ SAMO TUKAJ
+   Enote vseh odmikov: METRI. Primer: 0.05 = 5 cm, -0.03 = -3 cm.
+
+   X: vodoravno glede na orientacijo natisnjenega markerja
+   Y: pravokotno IZ ravnine markerja (proti telefonu, ko gledaš marker)
+   Z: druga smer v ravnini markerja
+
+   Ker je marker na zadnji strani tuljave, bo za premik na sprednjo
+   stran praviloma potreben odmik v smeri +/- Y. Predznak preveri
+   z dejanskim prikazom, ne z ugibanjem.
+   ===================================================================== */
+const OFFSET_X = 0.00;   // metrov
+const OFFSET_Y = 0.00;   // metrov
+const OFFSET_Z = 0.00;   // metrov
+/* ===================================================================== */
+
 (function(){
- const status=document.getElementById('status');
- const diag=document.getElementById('diag');
  const scene=document.querySelector('a-scene');
  const marker=document.getElementById('target');
- let found=false,ready=false;
- marker.addEventListener('markerFound',function(){found=true;status.textContent='✓ Marker ID 5 zaznan — XYZ osi';});
- marker.addEventListener('markerLost',function(){found=false;status.textContent='Marker izgubljen — usmeri na ID 5';});
- scene.addEventListener('loaded',function(){ready=true;status.textContent='Marker v3 — scena pripravljena';});
- window.addEventListener('error',function(e){status.textContent='Napaka: '+(e.message||'neznana');});
- window.addEventListener('unhandledrejection',function(e){status.textContent='Napaka: '+String(e.reason||'neznana');});
+ const origin=document.getElementById('coil-origin');
+ const status=document.getElementById('status');
+ const diag=document.getElementById('diag');
+ origin.setAttribute('position', `${OFFSET_X} ${OFFSET_Y} ${OFFSET_Z}`);
+ let found=false,loaded=false;
+ marker.addEventListener('markerFound',()=>{found=true;status.textContent='✓ Marker zaznan — velike XYZ osi';});
+ marker.addEventListener('markerLost',()=>{found=false;status.textContent='Marker izgubljen — pokaži ID 5';});
+ scene.addEventListener('loaded',()=>{loaded=true;status.textContent='Marker v4 — usmeri telefon na ID 5';});
+ window.addEventListener('error',e=>{status.textContent='Napaka: '+(e.message||'neznana');});
+ window.addEventListener('unhandledrejection',e=>{status.textContent='Napaka: '+String(e.reason||'neznana');});
  function layout(){
-  let v=[...document.querySelectorAll('video')].find(x=>x.srcObject)||document.querySelector('video');
-  let canvas=scene.querySelector('canvas');
-  if(v){v.setAttribute('playsinline','');v.muted=true;v.style.setProperty('position','fixed','important');v.style.setProperty('top','0','important');v.style.setProperty('left','0','important');v.style.setProperty('width','100vw','important');v.style.setProperty('height','100vh','important');v.style.setProperty('object-fit','cover','important');v.style.setProperty('transform','none','important');v.style.setProperty('z-index','0','important');}
+  const video=[...document.querySelectorAll('video')].find(v=>v.srcObject)||document.querySelector('video');
+  const canvas=scene.querySelector('canvas');
+  if(video){video.setAttribute('playsinline','');video.muted=true;
+   for(const [k,v] of Object.entries({position:'fixed',top:'0',left:'0',width:'100vw',height:'100vh',objectFit:'cover',transform:'none',zIndex:'0'}))video.style.setProperty(k.replace(/[A-Z]/g,c=>'-'+c.toLowerCase()),v,'important');
+  }
   if(scene.renderer){scene.renderer.setClearColor(0x000000,0);scene.renderer.setClearAlpha(0);}
-  if(canvas){canvas.style.setProperty('background','transparent','important');}
-  const videoText=v?(v.videoWidth+'×'+v.videoHeight+' / '+(v.paused?'premor':'predvaja')):'ni najden';
-  const rect=v&&v.getBoundingClientRect();
-  diag.textContent='zaslon '+innerWidth+'×'+innerHeight+' | video '+videoText+' | polje '+(rect?Math.round(rect.width)+'×'+Math.round(rect.height):'—')+' | scena '+(ready?'pripravljena':'nalaga')+' | marker '+(found?'DA':'NE');
-  if(ready&&!found&&v&&v.readyState>=2&&status.textContent.indexOf('Napaka')!==0){status.textContent='Kamera aktivna — poišči ID 5';}
+  if(canvas)canvas.style.setProperty('background','transparent','important');
+  diag.textContent=`video ${video?(video.videoWidth+'×'+video.videoHeight+' / '+(video.paused?'premor':'predvaja')):'ni najden'} · scena ${loaded?'OK':'nalaga'} · marker ${found?'DA':'NE'} · offset (${OFFSET_X}, ${OFFSET_Y}, ${OFFSET_Z}) m`;
  }
- setInterval(layout,700);
  window.addEventListener('resize',layout);
- layout();
+ setInterval(layout,750);layout();
 })();
 </script>
-</body></html>
+</body>
+</html>
