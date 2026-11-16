@@ -1,29 +1,29 @@
 
 <!doctype html>
-<html lang="sl" data-video-mode="cover">
+<html lang="sl" data-video-mode="native">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Coil AR v14 — diagnostika orientacije</title>
+<title>Coil AR v15 — pokončna kamera, preverjanje orientacije</title>
 <script>
-// Nastavimo način prikaza, preden AR.js inicializira kamero.
+// Način videa določimo še pred zagonom AR.js.
 try {
   document.documentElement.dataset.videoMode =
-    localStorage.getItem('coilARv14VideoMode') === 'native' ? 'native' : 'cover';
+    localStorage.getItem('coilARv15VideoMode') === 'cover' ? 'cover' : 'native';
 } catch(e) {}
 
-// Ohranjena izbira zadnje kamere (enako kot v delujočih različicah).
+// Ohrani izbiro kamere iz prejšnjih različic.
 (() => {
   const media = navigator.mediaDevices;
-  if (!media || !media.getUserMedia) return;
+  if (!media?.getUserMedia) return;
   const original = media.getUserMedia.bind(media);
-  const id = sessionStorage.getItem('coilCameraId');
-  if (!id) return;
+  const chosen = sessionStorage.getItem('coilCameraId');
+  if (!chosen) return;
   media.getUserMedia = async constraints => {
-    if (!constraints || !constraints.video) return original(constraints);
+    if (!constraints?.video) return original(constraints);
     const video = typeof constraints.video === 'object' ? {...constraints.video} : {};
     delete video.facingMode;
-    video.deviceId = {exact:id};
+    video.deviceId = {exact:chosen};
     try { return await original({...constraints,video}); }
     catch(e) { window.cameraFallback = e.name; return original(constraints); }
   };
@@ -32,14 +32,14 @@ try {
 <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
 <style>
-*,*::before,*::after {box-sizing:border-box}
-html,body {margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
-body {height:100dvh}
-video {z-index:0!important}
-/* PREIZKUS A: dosedanji celozaslonski prikaz kamere */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
+body{height:100dvh}
+video{z-index:0!important}
+/* Celozaslonski način je le možnost za primerjavo. */
 html[data-video-mode="cover"] video,
 html[data-video-mode="cover"] video.arjs-video,
-html[data-video-mode="cover"] body>video {
+html[data-video-mode="cover"] body>video{
   position:fixed!important;top:0!important;left:0!important;
   width:100vw!important;height:100dvh!important;
   max-width:none!important;max-height:none!important;
@@ -47,67 +47,64 @@ html[data-video-mode="cover"] body>video {
   margin:0!important;display:block!important;
   opacity:1!important;visibility:visible!important;z-index:0!important
 }
-/* PREIZKUS B: ne spreminjamo velikosti/izreza videa, ki jo nastavi AR.js. */
-a-scene {position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;background:transparent!important;z-index:1!important}
-a-scene canvas {background:transparent!important}
-.a-enter-vr,.a-enter-ar {display:none!important}
-#hud {position:fixed;z-index:9000;top:calc(7px + env(safe-area-inset-top));left:8px;right:8px;text-align:center;color:#fff;pointer-events:none}
-#status,#diag {background:rgba(0,0,0,.76);border-radius:8px;padding:7px 8px;margin-bottom:4px;overflow-wrap:anywhere}
-#status {font-size:13px;font-weight:700}
-#diag {font-size:10px;color:#c9ebff}
-#dock {position:fixed;z-index:10001;left:max(7px,env(safe-area-inset-left));right:max(7px,env(safe-area-inset-right));bottom:calc(7px + env(safe-area-inset-bottom));background:rgba(9,18,28,.95);color:#fff;border:1px solid #73899e;border-radius:13px;padding:7px 9px 8px;box-shadow:0 5px 20px #0008}
-#dockhead {display:flex;align-items:center;justify-content:space-between;gap:5px;margin-bottom:5px;font-size:12px}
-#dockhead select {background:#2a4155;color:white;border:1px solid #8096a9;border-radius:6px;padding:5px;font-size:12px}
-button {cursor:pointer;touch-action:manipulation}
-#settingsToggle,#resetRotation {border:0;border-radius:8px;background:#1360b6;color:#fff;font-size:12px;font-weight:bold;padding:9px 7px}
-.rotrow {display:grid;grid-template-columns:29px 1fr 50px 1fr;gap:6px;align-items:center;margin:4px 0}
-.rotrow .axis {text-align:center;font-weight:bold;font-size:15px}
-.rx {color:#ff6565}.ry {color:#65ff88}.rz {color:#58aeff}
-.rotrow button {min-height:36px;border:1px solid #829aaf;background:#334e64;color:#fff;border-radius:8px;font-size:23px;font-weight:bold}
-.rotrow output {text-align:center;font-size:14px;font-weight:bold;font-variant-numeric:tabular-nums}
-#docknote {text-align:center;color:#b3ccda;font-size:10px;margin-top:4px}
-#panel {position:fixed;z-index:10002;display:none;left:8px;right:8px;bottom:calc(202px + env(safe-area-inset-bottom));max-height:calc(100dvh - 260px);overflow:auto;background:rgba(10,19,29,.97);color:white;border:1px solid #758a9c;border-radius:12px;padding:12px;font-size:12px}
-#panel.open {display:block}
-#panel label {display:block;margin-top:10px}
-#panel label.check {display:flex;align-items:center;gap:8px}
-#panel label.check input {width:18px;height:18px}
-#panel input[type=range],#panel select {width:100%}
-#panel input[type=range] {accent-color:#36c0f0}
-#panel button,#panel select {border:1px solid #879cad;background:#293f52;color:white;padding:8px;border-radius:7px;margin-top:7px}
-#panel b {color:#95e6ff}
-#panel p {color:#c0d2e1;line-height:1.45}
-.section {font-size:13px;font-weight:bold;color:#91dfff;border-bottom:1px solid #52687b;margin-top:14px;padding-bottom:5px}
-#readout {overflow-wrap:anywhere}
+a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;background:transparent!important;z-index:1!important}
+a-scene canvas{background:transparent!important}
+.a-enter-vr,.a-enter-ar{display:none!important}
+#hud{position:fixed;z-index:9000;top:calc(7px + env(safe-area-inset-top));left:8px;right:8px;color:#fff;text-align:center;pointer-events:none}
+#status,#diag{background:#07121bd9;border-radius:9px;padding:6px 8px;margin-bottom:4px;overflow-wrap:anywhere}
+#status{font-size:13px;font-weight:700}
+#diag{font-size:10px;color:#c6eaff;line-height:1.3}
+#dock{position:fixed;z-index:10001;left:7px;right:7px;bottom:calc(7px + env(safe-area-inset-bottom));background:#091522f0;color:#fff;border:1px solid #7890a6;border-radius:12px;padding:8px 9px}
+#dockhead{display:flex;align-items:center;justify-content:space-between;gap:5px;font-size:12px;margin-bottom:5px}
+#dockhead select{background:#294256;color:#fff;border:1px solid #869cac;border-radius:6px;padding:5px}
+button{cursor:pointer;touch-action:manipulation}
+#settingsToggle,#zero{border:0;border-radius:8px;color:white;background:#1664ba;padding:8px;font-size:12px;font-weight:bold}
+.rotrow{display:grid;grid-template-columns:30px 1fr 52px 1fr;gap:5px;align-items:center;margin:4px 0}
+.rotrow span{font-weight:bold;text-align:center}
+.rx{color:#ff6666}.ry{color:#62ff87}.rz{color:#67b8ff}
+.rotrow button{min-height:36px;border:1px solid #8aa3b8;background:#355169;color:white;border-radius:8px;font-size:22px;font-weight:bold}
+.rotrow output{text-align:center;font-weight:bold;font-variant-numeric:tabular-nums}
+#tip{font-size:10px;color:#c8d8e6;text-align:center;margin-top:4px}
+#panel{position:fixed;display:none;z-index:10002;left:8px;right:8px;bottom:calc(199px + env(safe-area-inset-bottom));max-height:calc(100dvh - 260px);overflow-y:auto;background:#0a1828f7;color:white;border:1px solid #71899d;border-radius:12px;padding:12px;font-size:12px}
+#panel.open{display:block}
+#panel label{display:block;margin-top:9px}
+#panel label.check{display:flex;align-items:center;gap:8px}
+#panel label.check input{width:18px;height:18px}
+#panel input[type=range],#panel select{width:100%}
+#panel input[type=range]{accent-color:#43c9ff}
+#panel button,#panel select{color:white;background:#294357;border:1px solid #859cad;border-radius:7px;padding:8px;margin-top:6px}
+#panel b{color:#8de5ff}
+#panel p{color:#bfd4e5;line-height:1.4}
+.section{font-weight:bold;color:#85dcff;margin-top:14px;padding-bottom:4px;border-bottom:1px solid #506779}
+#readout{overflow-wrap:anywhere}
 </style>
 </head>
 <body>
 <div id="hud">
-  <div id="status">Coil AR v14 — zaganjam kamero …</div>
+  <div id="status">Coil AR v15 — zaganjam …</div>
   <div id="diag">Čakam na video …</div>
 </div>
 
+<!-- Ključna sprememba v15: POKONČNO razmerje 3:4 v VSEH treh nastavitvah.
+     Prej je bila obdelava 4:3 (ležeče), video pa 3:4 (pokončno). -->
 <a-scene embedded vr-mode-ui="enabled:false" device-orientation-permission-ui="enabled:false"
  renderer="alpha:true;antialias:true"
- arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;sourceWidth:1280;sourceHeight:960;displayWidth:1280;displayHeight:960;canvasWidth:960;canvasHeight:720;maxDetectionRate:30;">
+ arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;sourceWidth:720;sourceHeight:960;displayWidth:720;displayHeight:960;canvasWidth:480;canvasHeight:640;maxDetectionRate:30;">
   <a-marker id="target" type="barcode" value="5" size="0.035" emitevents="true" smooth="false">
-    <!-- 1. Referenčna plošča: NEPREMIČNO v ravnini markerja, brez offseta/rotacij. -->
+    <!-- Ta kvadrat ni odvisen od nobenega premika ali rotacije. -->
     <a-entity id="marker-plate"></a-entity>
-
-    <!-- 2. Moder primerjalni obroč: isti offset kot tuljava, rotacija vedno 0°. -->
-    <a-entity id="reference-origin">
-      <a-entity id="reference-mesh"></a-entity>
-    </a-entity>
-
-    <!-- 3. Oranžna tuljava: offset + tri nastavljive rotacije. -->
+    <!-- Referenčni obroč dobi isti OFFSET, ne pa ROT. -->
+    <a-entity id="reference-origin"><a-entity id="reference-mesh"></a-entity></a-entity>
+    <!-- Model tuljave dobi OFFSET in tri nastavljive ROT. -->
     <a-entity id="coil-origin">
       <a-entity id="axes">
-        <a-sphere radius="0.008" color="#ffffff" material="shader:flat"></a-sphere>
+        <a-sphere radius="0.008" color="#fff" material="shader:flat"></a-sphere>
         <a-cylinder position="0.05 0 0" radius="0.0027" height="0.10" rotation="0 0 -90" color="#ff3030" material="shader:flat"></a-cylinder>
         <a-cone position="0.107 0 0" radius-bottom="0.008" radius-top="0" height="0.015" rotation="0 0 -90" color="#ff3030" material="shader:flat"></a-cone>
-        <a-cylinder position="0 0.05 0" radius="0.0027" height="0.10" color="#27ff62" material="shader:flat"></a-cylinder>
-        <a-cone position="0 0.107 0" radius-bottom="0.008" radius-top="0" height="0.015" color="#27ff62" material="shader:flat"></a-cone>
-        <a-cylinder position="0 0 0.05" radius="0.0027" height="0.10" rotation="90 0 0" color="#319aff" material="shader:flat"></a-cylinder>
-        <a-cone position="0 0 0.107" radius-bottom="0.008" radius-top="0" height="0.015" rotation="90 0 0" color="#319aff" material="shader:flat"></a-cone>
+        <a-cylinder position="0 0.05 0" radius="0.0027" height="0.10" color="#2bff60" material="shader:flat"></a-cylinder>
+        <a-cone position="0 0.107 0" radius-bottom="0.008" radius-top="0" height="0.015" color="#2bff60" material="shader:flat"></a-cone>
+        <a-cylinder position="0 0 0.05" radius="0.0027" height="0.10" rotation="90 0 0" color="#2b9cff" material="shader:flat"></a-cylinder>
+        <a-cone position="0 0 0.107" radius-bottom="0.008" radius-top="0" height="0.015" rotation="90 0 0" color="#2b9cff" material="shader:flat"></a-cone>
       </a-entity>
       <a-entity id="model-root"></a-entity>
     </a-entity>
@@ -118,62 +115,59 @@ button {cursor:pointer;touch-action:manipulation}
 <div id="dock">
   <div id="dockhead">
     <strong>ROT X / Y / Z</strong>
-    <label>Korak <select id="angleStep"><option value="1">1°</option><option value="5" selected>5°</option><option value="10">10°</option></select></label>
-    <button id="resetRotation" type="button">0°</button>
+    <label>Korak <select id="step"><option value="1">1°</option><option value="5" selected>5°</option><option value="10">10°</option></select></label>
+    <button id="zero" type="button">0°</button>
     <button id="settingsToggle" type="button">⚙ Nastavitve</button>
   </div>
-  <div class="rotrow"><span class="axis rx">X</span><button data-axis="rx" data-sign="-1" type="button">−</button><output id="rxOut">0°</output><button data-axis="rx" data-sign="1" type="button">+</button></div>
-  <div class="rotrow"><span class="axis ry">Y</span><button data-axis="ry" data-sign="-1" type="button">−</button><output id="ryOut">0°</output><button data-axis="ry" data-sign="1" type="button">+</button></div>
-  <div class="rotrow"><span class="axis rz">Z</span><button data-axis="rz" data-sign="-1" type="button">−</button><output id="rzOut">0°</output><button data-axis="rz" data-sign="1" type="button">+</button></div>
-  <div id="docknote">Modri obroč se z gumbi ROT ne vrti. Oranžni se.</div>
+  <div class="rotrow"><span class="rx">X</span><button type="button" data-axis="rx" data-sign="-1">−</button><output id="rxOut">0°</output><button type="button" data-axis="rx" data-sign="1">+</button></div>
+  <div class="rotrow"><span class="ry">Y</span><button type="button" data-axis="ry" data-sign="-1">−</button><output id="ryOut">0°</output><button type="button" data-axis="ry" data-sign="1">+</button></div>
+  <div class="rotrow"><span class="rz">Z</span><button type="button" data-axis="rz" data-sign="-1">−</button><output id="rzOut">0°</output><button type="button" data-axis="rz" data-sign="1">+</button></div>
+  <div id="tip">Cian kvadrat = marker · Moder obroč = 0° · Oranžen = ROT</div>
 </div>
 
 <div id="panel">
-  <strong>Coil AR v14 — test sledenja markerja</strong>
-  <p><b>Cian plošča</b> je neposredno na markerju. <b>Moder obroč</b> je poravnan z markerjem in ima isti offset kot oranžni; zaradi vidnosti je 2 cm večji. <b>Oranžni obroč</b> je tuljava R = 15 cm in se odziva na gumbe ROT. Pri 0° morata biti obroča v isti ravnini.</p>
-  <div class="section">KAMERA</div>
-  <label>Kamera <select id="cameraSelect"><option value="">Privzeta zadnja kamera</option></select></label>
+  <strong>Coil AR v15 — popravek slike / orientacije</strong>
+  <p>Glavna sprememba: kamera in zaznavni raster uporabljata pokončno razmerje 3:4. Cian kvadrat je neposredno na markerju; modri obroč je neodvisen od gumbov ROT.</p>
+  <div class="section">KAMERA IN DIAGNOSTIKA</div>
+  <label>Kamera<select id="cameraSelect"><option value="">Privzeta zadnja kamera</option></select></label>
   <button id="reloadCamera" type="button">Uporabi kamero ↻</button>
-  <button id="refreshCameras" type="button">Osveži kamere</button>
-  <label>Prikaz videa (stran se ponovno naloži)
-    <select id="videoMode">
-      <option value="cover">Celozaslonsko — kot v v13</option>
-      <option value="native">Izvorno — AR.js brez prisilnega izreza</option>
-    </select>
-  </label>
-  <p>Če je pri izvornem prikazu slika manjša ali ima robove, je to namenjen diagnostični preizkus.</p>
-  <div class="section">REFERENČNA GEOMETRIJA</div>
-  <label class="check"><input id="showPlate" type="checkbox" checked>Cian plošča neposredno na markerju</label>
-  <label class="check"><input id="showReference" type="checkbox" checked>Moder obroč brez rotacije (R = 17 cm)</label>
-  <label class="check"><input id="showRing" type="checkbox" checked>Debel oranžni obroč (R = 15 cm)</label>
-  <label class="check"><input id="showAxes" type="checkbox" checked>XYZ osi modela</label>
-  <div class="section">POLOŽAJ</div>
-  <label>Korekcija merila: <b id="calVal">1.00×</b></label><input id="cal" type="range" min="0.5" max="2" step="0.05" value="1">
-  <label>OFFSET X: <b id="xVal">0 cm</b></label><input id="x" type="range" min="-100" max="100" step="1" value="0">
-  <label>OFFSET Y: <b id="yVal">0 cm</b></label><input id="y" type="range" min="-100" max="100" step="1" value="0">
-  <label>OFFSET Z: <b id="zVal">-20 cm</b></label><input id="z" type="range" min="-100" max="100" step="1" value="-20">
-  <label>XYZ SCALE: <b id="scaleVal">10×</b></label><input id="scale" type="range" min="10" max="30" step="1" value="10">
-  <div class="section">MAGNETNO POLJE (ZA ZDAJ IZKLOPLJENO)</div>
+  <button id="refreshCameras" type="button">Osveži seznam</button>
+  <label>Prikaz videa<select id="videoMode">
+    <option value="native">Izvorni prikaz AR.js (privzeto)</option>
+    <option value="cover">Celozaslonski izrez (za primerjavo)</option>
+  </select></label>
+  <p>Po spremembi prikaza se stran znova naloži. V izvornem načinu so lahko črni robovi. To je diagnostika, ne napaka.</p>
+  <label class="check"><input id="showPlate" type="checkbox" checked>Cian kvadrat na markerju</label>
+  <label class="check"><input id="showReference" type="checkbox" checked>Moder obroč — vedno brez rotacije (R = 17 cm)</label>
+  <label class="check"><input id="showRing" type="checkbox" checked>Debel oranžni obroč tuljave (R = 15 cm)</label>
+  <label class="check"><input id="showAxes" type="checkbox" checked>XYZ osi</label>
+  <div class="section">POLOŽAJ IN MERILO</div>
+  <label>Korekcija merila <b id="calVal">1.00×</b></label><input id="cal" type="range" min="0.5" max="2" step="0.05" value="1">
+  <label>OFFSET X <b id="xVal">0 cm</b></label><input id="x" type="range" min="-100" max="100" step="1" value="0">
+  <label>OFFSET Y <b id="yVal">0 cm</b></label><input id="y" type="range" min="-100" max="100" step="1" value="0">
+  <label>OFFSET Z <b id="zVal">-20 cm</b></label><input id="z" type="range" min="-100" max="100" step="1" value="-20">
+  <label>XYZ SCALE <b id="scaleVal">10×</b></label><input id="scale" type="range" min="10" max="30" step="1" value="10">
+  <div class="section">POLJE IN TOK (PRIVZETO IZKLOPLJENO)</div>
   <label class="check"><input id="showField" type="checkbox">Turkizne magnetne silnice</label>
   <label class="check"><input id="showFieldArrows" type="checkbox" checked>Statične rumene puščice na silnicah</label>
-  <label class="check"><input id="animateCurrent" type="checkbox">Animirane puščice smeri toka po obroču</label>
-  <label>Število smeri: <b id="planesVal">8</b></label><input id="planes" type="range" min="4" max="16" step="2" value="8">
-  <label>Višina polja: <b id="heightVal">24 cm</b></label><input id="height" type="range" min="12" max="40" step="2" value="24">
-  <label>Hitrost toka: <b id="speedVal">0.15 obhoda/s</b></label><input id="currentSpeed" type="range" min="0" max="0.6" step="0.025" value="0.15">
-  <label class="check"><input id="reverse" type="checkbox">Obrni smer toka</label>
-  <button id="resetAll" type="button">Ponastavi vse nastavitve</button>
+  <label class="check"><input id="animateCurrent" type="checkbox">Animirane puščice toka po obroču</label>
+  <label>Število smeri <b id="planesVal">8</b></label><input id="planes" type="range" min="4" max="16" step="2" value="8">
+  <label>Višina polja <b id="heightVal">24 cm</b></label><input id="height" type="range" min="12" max="40" step="2" value="24">
+  <label>Hitrost toka <b id="speedVal">0.15 obhoda/s</b></label><input id="currentSpeed" type="range" min="0" max="0.6" step="0.025" value="0.15">
+  <label class="check"><input id="reverse" type="checkbox">Obrni smer toka in magnetnega polja</label>
+  <button id="resetAll" type="button">Ponastavi vse</button>
   <p id="readout"></p>
 </div>
 
 <script>
 const MARKER_SIZE_CM = 3.5;
 const COIL_RADIUS_CM = 15;
-const REF_RADIUS_CM = 17;  // za 2 cm večji, da vidimo oba obroča
-const COIL_TUBE_RADIUS_CM = 0.65;
-const SCENE_UNITS_PER_CM = 1 / MARKER_SIZE_CM;
+const REFERENCE_RADIUS_CM = 17;
+const COIL_TUBE_RADIUS_CM = .65;
+const SCENE_UNITS_PER_CM = 1/MARKER_SIZE_CM;
 const DEFAULTS = {
-  x:0,y:0,z:-20, rx:0,ry:0,rz:0, cal:1,scale:10,
-  planes:8,height:24,currentSpeed:0.15,reverse:false,
+  x:0,y:0,z:-20,rx:0,ry:0,rz:0,cal:1,scale:10,
+  planes:8,height:24,currentSpeed:.15,reverse:false,
   showPlate:true,showReference:true,showRing:true,showAxes:true,
   showField:false,showFieldArrows:true,animateCurrent:false
 };
@@ -183,324 +177,240 @@ const DEFAULTS = {
 const $ = id => document.getElementById(id);
 const scene = document.querySelector('a-scene');
 const marker = $('target');
-const markerPlate = $('marker-plate');
-const referenceOrigin = $('reference-origin');
-const referenceMesh = $('reference-mesh');
+const plateEl = $('marker-plate');
+const refOrigin = $('reference-origin');
+const refEl = $('reference-mesh');
 const origin = $('coil-origin');
 const axes = $('axes');
-const modelRoot = $('model-root');
+const model = $('model-root');
 const status = $('status');
-const diag = $('diag');
+let cfg = {...DEFAULTS};
+let ready = false, found = false, started = false;
+let ring = null, currentGroup = null, fieldLines = null, fieldHeads = null;
+let currentArrows = [], staticArrows = [], wire = [];
+let phase = 0;
 const UP = new THREE.Vector3(0,1,0);
 
-let cfg = {...DEFAULTS};
-let initialized = false;
-let ready = false;
-let found = false;
-let ringGroup = null;
-let arrowGroup = null;
-let fieldLines = null;
-let fieldArrowGroup = null;
-let fieldArrows = [];
-let currentArrows = [];
-let wire = [];
-let currentPhase = 0;
-
-// Od v13 prenesemo samo uporabne številčne kalibracije.
+// V v15 namenoma ne prenesemo prejšnjih rotacij (da test začnemo z 0°).
 try {
-  const current = localStorage.getItem('coilARv14');
-  const saved = JSON.parse(current || localStorage.getItem('coilARv13') || 'null');
-  if (saved) {
-    for (const key of ['x','y','z','rx','ry','rz','cal','scale','planes','height','currentSpeed']) {
-      if (Number.isFinite(Number(saved[key]))) cfg[key] = Number(saved[key]);
-    }
-    if (current) {
-      for (const key of ['reverse','showPlate','showReference','showRing','showAxes','showField','showFieldArrows','animateCurrent']) {
-        if (typeof saved[key] === 'boolean') cfg[key] = saved[key];
-      }
-    }
+  const own = localStorage.getItem('coilARv15');
+  const saved = JSON.parse(own || localStorage.getItem('coilARv14') || 'null');
+  if(saved) {
+    const numbers = own
+      ? ['x','y','z','rx','ry','rz','cal','scale','planes','height','currentSpeed']
+      : ['x','y','z','cal','scale','planes','height','currentSpeed'];
+    for(const k of numbers)if(Number.isFinite(Number(saved[k])))cfg[k]=Number(saved[k]);
+    if(own)for(const k of ['reverse','showPlate','showReference','showRing','showAxes','showField','showFieldArrows','animateCurrent'])
+      if(typeof saved[k]==='boolean')cfg[k]=saved[k];
   }
 } catch(e) {}
 
-function disposeGroup(group) {
-  if (!group) return;
-  const geometries = new Set(), materials = new Set();
-  group.traverse(obj => {
-    if (obj.geometry) geometries.add(obj.geometry);
-    if (obj.material) (Array.isArray(obj.material) ? obj.material : [obj.material]).forEach(m => materials.add(m));
+function dispose(group) {
+  if(!group)return;
+  const geo=new Set(), mat=new Set();
+  group.traverse(o=>{
+    if(o.geometry)geo.add(o.geometry);
+    if(o.material)(Array.isArray(o.material)?o.material:[o.material]).forEach(m=>mat.add(m));
   });
-  if (group.parent) group.parent.remove(group);
-  geometries.forEach(g => g.dispose());
-  materials.forEach(m => m.dispose());
+  group.parent?.remove(group);
+  geo.forEach(g=>g.dispose());mat.forEach(m=>m.dispose());
 }
-
-// Diagnostična plošča ima lokalni XZ položaj, ne dobi offseta ali rotacij.
-function buildMarkerPlate() {
-  const group = new THREE.Group();
-  const fill = new THREE.Mesh(
-    new THREE.PlaneGeometry(1,1),
-    new THREE.MeshBasicMaterial({color:0x00eaff,side:THREE.DoubleSide,transparent:true,opacity:0.16,depthWrite:false})
-  );
-  fill.rotation.x = -Math.PI/2;
-  fill.position.y = 0.013;
-  group.add(fill);
-  const edgeMat = new THREE.MeshBasicMaterial({color:0x00ffff,depthTest:false});
-  for (const side of [-1,1]) {
-    const xEdge = new THREE.Mesh(new THREE.BoxGeometry(0.035,0.012,1.06),edgeMat);
-    xEdge.position.set(side*0.52,0.024,0);
-    group.add(xEdge);
-    const zEdge = new THREE.Mesh(new THREE.BoxGeometry(1.06,0.012,0.035),edgeMat);
-    zEdge.position.set(0,0.024,side*0.52);
-    group.add(zEdge);
+function buildPlate() {
+  const g=new THREE.Group();
+  const fill=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color:0x00eaff,side:THREE.DoubleSide,transparent:true,opacity:.20,depthWrite:false}));
+  fill.rotation.x=-Math.PI/2;fill.position.y=.008;g.add(fill);
+  const edgeMat=new THREE.MeshBasicMaterial({color:0x00ffff,depthTest:false});
+  for(const s of [-1,1]) {
+    const x=new THREE.Mesh(new THREE.BoxGeometry(.035,.018,1.06),edgeMat);
+    x.position.set(s*.52,.025,0);g.add(x);
+    const z=new THREE.Mesh(new THREE.BoxGeometry(1.06,.018,.035),edgeMat);
+    z.position.set(0,.025,s*.52);g.add(z);
   }
-  markerPlate.object3D.add(group);
+  plateEl.object3D.add(g);
 }
-
-function circleTube(radius,tubeRadius,color) {
-  const curve = new THREE.EllipseCurve(0,0,radius,radius,0,Math.PI*2,false,0);
-  const points2D = curve.getPoints(180);
-  const points3D = points2D.map(p => new THREE.Vector3(p.x,0,p.y));
-  const spline = new THREE.CatmullRomCurve3(points3D,true,'centripetal');
-  return new THREE.Mesh(
-    new THREE.TubeGeometry(spline,180,tubeRadius,9,true),
-    new THREE.MeshBasicMaterial({color})
-  );
+function ringMesh(radius,tube,color) {
+  const pts=[];
+  for(let i=0;i<120;i++){
+    const a=i*2*Math.PI/120;
+    pts.push(new THREE.Vector3(radius*Math.cos(a),0,radius*Math.sin(a)));
+  }
+  const curve=new THREE.CatmullRomCurve3(pts,true,'centripetal');
+  return new THREE.Mesh(new THREE.TubeGeometry(curve,180,tube,9,true),new THREE.MeshBasicMaterial({color}));
 }
-
 function makeArrow(color) {
-  const group = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({color});
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.20,.20,1.1,7),mat);
-  shaft.position.y = -.35;
-  const head = new THREE.Mesh(new THREE.ConeGeometry(.56,1.0,7),mat);
-  head.position.y = .38;
-  group.add(shaft,head);
-  return group;
+  const g=new THREE.Group(),m=new THREE.MeshBasicMaterial({color});
+  const stem=new THREE.Mesh(new THREE.CylinderGeometry(.2,.2,1.1,7),m);
+  stem.position.y=-.35;
+  const cone=new THREE.Mesh(new THREE.ConeGeometry(.56,1,7),m);
+  cone.position.y=.38;g.add(stem,cone);return g;
 }
-
 function buildRings() {
-  referenceMesh.object3D.add(circleTube(REF_RADIUS_CM,.12,0x00dfff));
-  ringGroup = new THREE.Group();
-  ringGroup.add(circleTube(COIL_RADIUS_CM,COIL_TUBE_RADIUS_CM,0xff972b));
-  modelRoot.object3D.add(ringGroup);
-  arrowGroup = new THREE.Group();
-  modelRoot.object3D.add(arrowGroup);
-  for (let i=0;i<6;i++) {
-    const mesh = makeArrow(0xfff4b1);
-    arrowGroup.add(mesh);
-    currentArrows.push({mesh,phase:i/6});
+  refEl.object3D.add(ringMesh(REFERENCE_RADIUS_CM,.12,0x00dfff));
+  ring=new THREE.Group();ring.add(ringMesh(COIL_RADIUS_CM,COIL_TUBE_RADIUS_CM,0xff962e));
+  model.object3D.add(ring);
+  currentGroup=new THREE.Group();model.object3D.add(currentGroup);
+  for(let i=0;i<6;i++){
+    const mesh=makeArrow(0xffffb0);currentGroup.add(mesh);
+    currentArrows.push({mesh,offset:i/6});
   }
 }
-
-// ------------------------------------------------------------
-// Neobvezno magnetno polje (ista numerična metoda kot v13).
-// V diagnostiki ga ne gradimo, dokler ni vklopljeno.
-// ------------------------------------------------------------
+// Biot–Savart: prikaz smeri polja ene idealne krožne zanke.
 function makeWire() {
-  if (wire.length) return;
-  const n=96;
-  for(let i=0;i<n;i++) {
-    const a=2*Math.PI*i/n,b=2*Math.PI*(i+1)/n;
+  if(wire.length)return;
+  for(let i=0;i<96;i++){
+    const a=2*Math.PI*i/96,b=2*Math.PI*(i+1)/96;
     const x0=COIL_RADIUS_CM*Math.cos(a),z0=COIL_RADIUS_CM*Math.sin(a);
     const x1=COIL_RADIUS_CM*Math.cos(b),z1=COIL_RADIUS_CM*Math.sin(b);
     wire.push({mx:(x0+x1)/2,mz:(z0+z1)/2,dx:x1-x0,dz:z1-z0});
   }
 }
-function direction(p) {
+function fieldDirection(p) {
   let x=0,y=0,z=0;
-  for (const s of wire) {
+  for(const s of wire){
     const rx=p.x-s.mx,ry=p.y,rz=p.z-s.mz;
-    const r2=rx*rx+ry*ry+rz*rz+.04;
-    const q=1/(r2*Math.sqrt(r2));
-    x+=-s.dz*ry*q;
-    y+=(s.dz*rx-s.dx*rz)*q;
-    z+=s.dx*ry*q;
+    const q2=rx*rx+ry*ry+rz*rz+.04;
+    const q=1/(q2*Math.sqrt(q2));
+    x-=s.dz*ry*q;y+=(s.dz*rx-s.dx*rz)*q;z+=s.dx*ry*q;
   }
-  const l=Math.hypot(x,y,z);
-  return l>1e-12 && Number.isFinite(l) ? new THREE.Vector3(x/l,y/l,z/l):null;
+  const n=Math.hypot(x,y,z);
+  return n>1e-12&&Number.isFinite(n)?new THREE.Vector3(x/n,y/n,z/n):null;
 }
 function rk4(p,h) {
-  const a=direction(p);if(!a)return null;
-  const b=direction(p.clone().addScaledVector(a,h/2));if(!b)return null;
-  const c=direction(p.clone().addScaledVector(b,h/2));if(!c)return null;
-  const d=direction(p.clone().addScaledVector(c,h));if(!d)return null;
+  const a=fieldDirection(p);if(!a)return null;
+  const b=fieldDirection(p.clone().addScaledVector(a,h/2));if(!b)return null;
+  const c=fieldDirection(p.clone().addScaledVector(b,h/2));if(!c)return null;
+  const d=fieldDirection(p.clone().addScaledVector(c,h));if(!d)return null;
   return p.clone().add(a.addScaledVector(b,2).addScaledVector(c,2).add(d).multiplyScalar(h/6));
 }
 function trace(seed,sign) {
-  const arr=[seed.clone()];let p=seed.clone();
-  for(let i=0;i<550;i++) {
+  const out=[seed.clone()];let p=seed.clone();
+  for(let i=0;i<550;i++){
     const q=rk4(p,sign*.28);if(!q)break;
-    const radius=Math.hypot(q.x,q.z);
-    if(Math.hypot(radius-COIL_RADIUS_CM,q.y)<.45 || radius>38 || q.y>cfg.height)break;
-    if(q.y<0) {
-      if(p.y>=0)arr.push(p.clone().lerp(q,p.y/(p.y-q.y)));
-      break;
-    }
-    arr.push(q);p=q;
+    const r=Math.hypot(q.x,q.z);
+    if(Math.hypot(r-COIL_RADIUS_CM,q.y)<.45||r>38||q.y>cfg.height)break;
+    if(q.y<0){if(p.y>=0)out.push(p.clone().lerp(q,p.y/(p.y-q.y)));break;}
+    out.push(q);p=q;
   }
-  return arr;
-}
-function baseLine(height) {
-  const seed=new THREE.Vector3(COIL_RADIUS_CM,height,0);
-  return trace(seed,-1).reverse().concat(trace(seed,1).slice(1));
+  return out;
 }
 function buildField() {
-  disposeGroup(fieldLines);
-  disposeGroup(fieldArrowGroup);
-  fieldLines = new THREE.Group();
-  fieldArrowGroup = new THREE.Group();
-  fieldArrows=[];
-  makeWire();
-  const material=new THREE.LineBasicMaterial({color:0x35e9ff,opacity:.95,transparent:true});
-  const heights=[1.5,3,5,7,9];
-  const base=heights.map(baseLine).filter(a=>a.length>8);
-  for(let i=0;i<cfg.planes;i++) {
-    const angle=2*Math.PI*i/cfg.planes;
-    for(const arr of base) {
-      const pts=arr.map(p=>p.clone().applyAxisAngle(UP,angle));
-      const curve=new THREE.CatmullRomCurve3(pts,false,'centripetal');
-      fieldLines.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getSpacedPoints(Math.max(40,Math.min(160,pts.length)))),material));
-      for (const u of [.30,.72]) {
-        const pos=curve.getPointAt(u);
-        const dir=direction(pos)||curve.getTangentAt(u);
-        const mesh=makeArrow(0xffe45e);
-        mesh.scale.setScalar(.75);
-        mesh.position.copy(pos);
-        fieldArrowGroup.add(mesh);
-        fieldArrows.push({mesh,dir});
-      }
+  dispose(fieldLines);dispose(fieldHeads);staticArrows=[];
+  fieldLines=new THREE.Group();fieldHeads=new THREE.Group();makeWire();
+  const material=new THREE.LineBasicMaterial({color:0x35e9ff,transparent:true,opacity:.94});
+  const bases=[1.5,3,5,7,9].map(h=>{
+    const seed=new THREE.Vector3(COIL_RADIUS_CM,h,0);
+    return trace(seed,-1).reverse().concat(trace(seed,1).slice(1));
+  }).filter(arr=>arr.length>8);
+  for(let i=0;i<cfg.planes;i++)for(const base of bases){
+    const phi=2*Math.PI*i/cfg.planes;
+    const pts=base.map(p=>p.clone().applyAxisAngle(UP,phi));
+    const curve=new THREE.CatmullRomCurve3(pts,false,'centripetal');
+    fieldLines.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(curve.getSpacedPoints(Math.min(160,Math.max(40,pts.length)))),material));
+    for(const t of [.30,.72]){
+      const pos=curve.getPointAt(t),dir=fieldDirection(pos)||curve.getTangentAt(t);
+      const arrow=makeArrow(0xffe45e);arrow.scale.setScalar(.75);arrow.position.copy(pos);
+      fieldHeads.add(arrow);staticArrows.push({arrow,dir});
     }
   }
-  modelRoot.object3D.add(fieldLines,fieldArrowGroup);
-  updateVisibility();
+  model.object3D.add(fieldLines,fieldHeads);
+  visibility();
 }
-
-function updateCurrentArrows() {
+function currentPositions() {
   const sign=cfg.reverse?-1:1;
-  for(const a of currentArrows) {
-    const t=2*Math.PI*(a.phase+currentPhase);
-    a.mesh.position.set(COIL_RADIUS_CM*Math.cos(t),1.08,COIL_RADIUS_CM*Math.sin(t));
+  for(const a of currentArrows){
+    const t=2*Math.PI*(phase+a.offset);
+    a.mesh.position.set(COIL_RADIUS_CM*Math.cos(t),1.05,COIL_RADIUS_CM*Math.sin(t));
     a.mesh.quaternion.setFromUnitVectors(UP,new THREE.Vector3(-Math.sin(t)*sign,0,Math.cos(t)*sign));
   }
 }
-function updateVisibility() {
-  markerPlate.object3D.visible=cfg.showPlate;
-  referenceMesh.object3D.visible=cfg.showReference;
-  if(ringGroup)ringGroup.visible=cfg.showRing;
-  if(arrowGroup)arrowGroup.visible=cfg.showRing && cfg.animateCurrent;
+function visibility() {
+  plateEl.object3D.visible=cfg.showPlate;
+  refEl.object3D.visible=cfg.showReference;
+  if(ring)ring.visible=cfg.showRing;
+  if(currentGroup)currentGroup.visible=cfg.showRing&&cfg.animateCurrent;
   if(fieldLines)fieldLines.visible=cfg.showField;
-  if(fieldArrowGroup)fieldArrowGroup.visible=cfg.showField && cfg.showFieldArrows;
-  for(const a of fieldArrows) {
-    const d=a.dir.clone().multiplyScalar(cfg.reverse?-1:1);
-    a.mesh.quaternion.setFromUnitVectors(UP,d);
-  }
+  if(fieldHeads)fieldHeads.visible=cfg.showField&&cfg.showFieldArrows;
+  for(const s of staticArrows)s.arrow.quaternion.setFromUnitVectors(UP,s.dir.clone().multiplyScalar(cfg.reverse?-1:1));
 }
 function apply() {
-  cfg.cal=Math.max(.5,Math.min(2,cfg.cal));
-  cfg.scale=Math.max(10,Math.min(30,cfg.scale));
+  cfg.cal=Math.max(.5,Math.min(2,cfg.cal));cfg.scale=Math.max(10,Math.min(30,cfg.scale));
   cfg.planes=Math.max(4,Math.min(16,Math.round(cfg.planes/2)*2));
   cfg.height=Math.max(12,Math.min(40,cfg.height));
   cfg.currentSpeed=Math.max(0,Math.min(.6,cfg.currentSpeed));
   const k=SCENE_UNITS_PER_CM*cfg.cal;
-  if(origin.object3D) {
-    origin.object3D.position.set(cfg.x*k,cfg.y*k,cfg.z*k);
-    origin.object3D.rotation.set(
-      THREE.MathUtils.degToRad(cfg.rx),
-      THREE.MathUtils.degToRad(cfg.ry),
-      THREE.MathUtils.degToRad(cfg.rz),'YXZ'
-    );
-  }
-  if(referenceOrigin.object3D)referenceOrigin.object3D.position.set(cfg.x*k,cfg.y*k,cfg.z*k);
-  if(referenceMesh.object3D)referenceMesh.object3D.scale.setScalar(k);
-  if(modelRoot.object3D)modelRoot.object3D.scale.setScalar(k);
-  if(axes.object3D) {axes.object3D.scale.setScalar(cfg.scale);axes.object3D.visible=cfg.showAxes;}
-  updateVisibility();
-  updateCurrentArrows();
-  for(const axis of ['rx','ry','rz'])$(axis+'Out').textContent=cfg[axis]+'°';
-  for(const axis of ['x','y','z'])$(axis+'Val').textContent=cfg[axis]+' cm';
+  origin.object3D.position.set(cfg.x*k,cfg.y*k,cfg.z*k);
+  origin.object3D.rotation.set(
+    THREE.MathUtils.degToRad(cfg.rx),THREE.MathUtils.degToRad(cfg.ry),THREE.MathUtils.degToRad(cfg.rz),'YXZ'
+  );
+  refOrigin.object3D.position.set(cfg.x*k,cfg.y*k,cfg.z*k);
+  refEl.object3D.scale.setScalar(k);
+  model.object3D.scale.setScalar(k);
+  axes.object3D.scale.setScalar(cfg.scale);
+  axes.object3D.visible=cfg.showAxes;
+  visibility();currentPositions();
+  for(const key of ['rx','ry','rz'])$(key+'Out').textContent=cfg[key]+'°';
+  for(const key of ['x','y','z'])$(key+'Val').textContent=cfg[key]+' cm';
   $('calVal').textContent=cfg.cal.toFixed(2)+'×';
   $('scaleVal').textContent=cfg.scale+'×';
   $('planesVal').textContent=cfg.planes;
   $('heightVal').textContent=cfg.height+' cm';
   $('speedVal').textContent=cfg.currentSpeed.toFixed(3)+' obhoda/s';
-  for(const key of ['x','y','z','cal','scale','planes','height','currentSpeed'])$(key).value=cfg[key];
-  for(const key of ['showPlate','showReference','showRing','showAxes','showField','showFieldArrows','animateCurrent','reverse'])$(key).checked=cfg[key];
-  $('readout').textContent=`OFFSET (${cfg.x}, ${cfg.y}, ${cfg.z}) cm · ROT (${cfg.rx}°, ${cfg.ry}°, ${cfg.rz}°) · orange R=15 cm · modro R=17 cm`;
-  try {localStorage.setItem('coilARv14',JSON.stringify(cfg));}catch(e){}
+  for(const k of ['x','y','z','cal','scale','planes','height','currentSpeed'])$(k).value=cfg[k];
+  for(const k of ['showPlate','showReference','showRing','showAxes','showField','showFieldArrows','animateCurrent','reverse'])$(k).checked=cfg[k];
+  $('readout').textContent=`OFFSET (${cfg.x}, ${cfg.y}, ${cfg.z}) cm · ROT (${cfg.rx}°, ${cfg.ry}°, ${cfg.rz}°) · R=15 cm`;
+  try{localStorage.setItem('coilARv15',JSON.stringify(cfg));}catch(e){}
 }
-
-// Animacija v A-Frame render zanki. Magnetne puščice NE premikamo.
-AFRAME.registerComponent('coil-current-v14',{
-  tick(time,dt) {
-    if(!ready || !found || !cfg.showRing || !cfg.animateCurrent)return;
-    const delta=Math.max(0,Math.min(dt/1000,.06));
-    currentPhase+=delta*cfg.currentSpeed*(cfg.reverse?-1:1);
-    currentPhase%=1;
-    updateCurrentArrows();
+AFRAME.registerComponent('current-v15',{
+  tick(time,dt){
+    if(!ready||!found||!cfg.animateCurrent||!cfg.showRing)return;
+    phase+=Math.max(0,Math.min(dt/1000,.06))*cfg.currentSpeed*(cfg.reverse?-1:1);
+    phase%=1;currentPositions();
   }
 });
-scene.setAttribute('coil-current-v14','');
+scene.setAttribute('current-v15','');
 
-// Kontrole rotacije
-for(const button of document.querySelectorAll('[data-axis][data-sign]')) {
-  button.addEventListener('click',()=>{
-    const axis=button.dataset.axis;
-    const sign=Number(button.dataset.sign);
-    const step=Number($('angleStep').value);
-    cfg[axis]=Math.max(-180,Math.min(180,cfg[axis]+sign*step));
-    apply();
-  });
-}
-$('resetRotation').addEventListener('click',()=>{cfg.rx=cfg.ry=cfg.rz=0;apply();});
+for(const button of document.querySelectorAll('[data-axis]'))button.addEventListener('click',()=>{
+  const k=button.dataset.axis;
+  cfg[k]=Math.max(-180,Math.min(180,cfg[k]+Number(button.dataset.sign)*Number($('step').value)));
+  apply();
+});
+$('zero').addEventListener('click',()=>{cfg.rx=cfg.ry=cfg.rz=0;apply();});
 $('settingsToggle').addEventListener('click',()=>{
-  const opened=$('panel').classList.toggle('open');
-  $('settingsToggle').textContent=opened?'✕ Zapri':'⚙ Nastavitve';
+  const open=$('panel').classList.toggle('open');
+  $('settingsToggle').textContent=open?'✕ Zapri':'⚙ Nastavitve';
 });
-for(const key of ['x','y','z','cal','scale','currentSpeed']) {
-  $(key).addEventListener('input',()=>{cfg[key]=Number($(key).value);apply();});
-}
-for(const key of ['planes','height']) {
-  $(key).addEventListener('change',()=>{
-    cfg[key]=Number($(key).value);apply();
-    if(cfg.showField && ready)buildField();
-  });
-}
-for(const key of ['showPlate','showReference','showRing','showAxes','showField','showFieldArrows','animateCurrent','reverse']) {
-  $(key).addEventListener('change',()=>{
-    cfg[key]=$(key).checked;
-    if(key==='showField' && cfg.showField && !fieldLines && ready)buildField();
-    apply();
-  });
-}
+for(const k of ['x','y','z','cal','scale','currentSpeed'])$(k).addEventListener('input',()=>{cfg[k]=Number($(k).value);apply();});
+for(const k of ['planes','height'])$(k).addEventListener('change',()=>{
+  cfg[k]=Number($(k).value);apply();if(cfg.showField&&ready)buildField();
+});
+for(const k of ['showPlate','showReference','showRing','showAxes','showField','showFieldArrows','animateCurrent','reverse'])$(k).addEventListener('change',()=>{
+  cfg[k]=$(k).checked;
+  if(k==='showField'&&cfg.showField&&!fieldLines&&ready)buildField();
+  apply();
+});
 $('resetAll').addEventListener('click',()=>{
-  cfg={...DEFAULTS};
-  disposeGroup(fieldLines);disposeGroup(fieldArrowGroup);
-  fieldLines=null;fieldArrowGroup=null;fieldArrows=[];
-  apply();
+  cfg={...DEFAULTS};dispose(fieldLines);dispose(fieldHeads);
+  fieldLines=null;fieldHeads=null;staticArrows=[];apply();
 });
-
-marker.addEventListener('markerFound',()=>{found=true;status.textContent='✓ Marker ID 5 zaznan — diagnostični način';});
+marker.addEventListener('markerFound',()=>{found=true;status.textContent='✓ Marker ID 5 zaznan — v15';});
 marker.addEventListener('markerLost',()=>{found=false;status.textContent='Marker izgubljen — usmeri na ID 5';});
-function init() {
-  if(initialized)return;
-  initialized=true;ready=true;
-  buildMarkerPlate();buildRings();
-  if(cfg.showField)buildField();
-  apply();
-  if(!found)status.textContent='Coil AR v14 — usmeri kamero na ID 5';
+function init(){
+  if(started)return;
+  started=true;ready=true;buildPlate();buildRings();
+  if(cfg.showField)buildField();apply();
+  if(!found)status.textContent='Coil AR v15 — usmeri na marker ID 5';
 }
 scene.addEventListener('loaded',init);
 if(scene.hasLoaded)init();
 
-async function listCameras() {
-  const select=$('cameraSelect');
-  const saved=sessionStorage.getItem('coilCameraId')||'';
-  select.replaceChildren(new Option('Privzeta zadnja kamera',''));
+async function listCameras(){
+  const sel=$('cameraSelect'),chosen=sessionStorage.getItem('coilCameraId')||'';
+  sel.replaceChildren(new Option('Privzeta zadnja kamera',''));
   if(!navigator.mediaDevices?.enumerateDevices)return;
-  try {
-    const devices=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
-    devices.forEach((d,i)=>select.add(new Option(d.label||`Kamera ${i+1}`,d.deviceId)));
-    if([...select.options].some(o=>o.value===saved))select.value=saved;
+  try{
+    const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+    ds.forEach((d,i)=>sel.add(new Option(d.label||`Kamera ${i+1}`,d.deviceId)));
+    if([...sel.options].some(o=>o.value===chosen))sel.value=chosen;
   }catch(e){console.warn('Kamere:',e);}
 }
 $('refreshCameras').addEventListener('click',listCameras);
@@ -508,32 +418,29 @@ $('reloadCamera').addEventListener('click',()=>{
   const id=$('cameraSelect').value;
   if(id)sessionStorage.setItem('coilCameraId',id);
   else sessionStorage.removeItem('coilCameraId');
-  document.querySelectorAll('video').forEach(v=>v.srcObject?.getTracks?.().forEach(t=>t.stop()));
   location.reload();
 });
 $('videoMode').value=document.documentElement.dataset.videoMode;
 $('videoMode').addEventListener('change',()=>{
-  try{localStorage.setItem('coilARv14VideoMode',$('videoMode').value);}catch(e){}
+  try{localStorage.setItem('coilARv15VideoMode',$('videoMode').value);}catch(e){}
   location.reload();
 });
-
-function diagnostics() {
+function diagnostics(){
   const video=[...document.querySelectorAll('video')].find(v=>v.srcObject)||document.querySelector('video');
-  if(video) {video.setAttribute('playsinline','');video.muted=true;}
-  if(scene.renderer) {scene.renderer.setClearColor(0x000000,0);scene.renderer.setClearAlpha(0);}
+  if(video){video.setAttribute('playsinline','');video.muted=true;}
+  if(scene.renderer){scene.renderer.setClearColor(0x000000,0);scene.renderer.setClearAlpha(0);}
   const canvas=scene.querySelector('canvas');
   if(canvas)canvas.style.setProperty('background','transparent','important');
-  const rect=video?.getBoundingClientRect();
-  const track=video?.srcObject?.getVideoTracks?.()[0];
-  diag.textContent=`Video ${video?.videoWidth||0}×${video?.videoHeight||0}`+
-    ` · zaslon ${rect?Math.round(rect.width)+'×'+Math.round(rect.height):'?'}`+
-    ` · ${document.documentElement.dataset.videoMode==='native'?'AR.js izvorno':'cover'}`+
-    ` · marker ${found?'DA':'NE'}`+
-    ` · ${track?.label||'privzeta kamera'}`;
+  const vr=video?.getBoundingClientRect(),track=video?.srcObject?.getVideoTracks?.()[0];
+  const videoSize=`${video?.videoWidth||0}×${video?.videoHeight||0}`;
+  const expected=(video?.videoWidth&&video?.videoHeight)
+    ? (video.videoWidth/video.videoHeight).toFixed(3) : '?';
+  $('diag').textContent=`Video ${videoSize} (razmerje ${expected}) · raster 480×640 · ${document.documentElement.dataset.videoMode}`+
+    ` · prikaz ${vr?Math.round(vr.width)+'×'+Math.round(vr.height):'?'}`+
+    ` · marker ${found?'DA':'NE'} · ${track?.label||'kamera'}`;
 }
 window.addEventListener('resize',diagnostics);
-setInterval(diagnostics,950);
-setTimeout(listCameras,1700);
+setInterval(diagnostics,900);setTimeout(listCameras,1700);
 window.addEventListener('error',e=>{status.textContent='Napaka: '+(e.message||'neznana');});
 window.addEventListener('unhandledrejection',e=>{status.textContent='Napaka: '+String(e.reason);});
 apply();diagnostics();
