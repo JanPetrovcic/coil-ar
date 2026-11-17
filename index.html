@@ -4,1162 +4,262 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Coil AR v17 – dva markerja, skupno središče</title>
-
+<title>Coil AR v18 – osi obeh markerjev</title>
 <script>
-// Ohranimo ročno izbrano kamero iz prejšnjih različic.
+// Izbira že uporabljene kamere (pred zagonom AR.js).
 (() => {
-  const media = navigator.mediaDevices;
+  const media=navigator.mediaDevices;
   if (!media?.getUserMedia) return;
-
-  const original = media.getUserMedia.bind(media);
-  const chosen = sessionStorage.getItem('coilCameraId');
-
-  if (!chosen) return;
-
-  media.getUserMedia = async constraints => {
+  const original=media.getUserMedia.bind(media);
+  const id=sessionStorage.getItem('coilCameraId');
+  if (!id) return;
+  media.getUserMedia=async constraints => {
     if (!constraints?.video) return original(constraints);
-
-    const video = typeof constraints.video === 'object'
-      ? {...constraints.video}
-      : {};
-
+    const video=typeof constraints.video==='object'?{...constraints.video}:{};
     delete video.facingMode;
-    video.deviceId = {exact:chosen};
-
-    try {
-      return await original({...constraints, video});
-    } catch (error) {
-      window.coilCameraFallback = error.name;
-      return original(constraints);
-    }
+    video.deviceId={exact:id};
+    try { return await original({...constraints,video}); }
+    catch(e) { return original(constraints); }
   };
 })();
 </script>
-
 <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
 <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
-
 <style>
-*,*::before,*::after {
-  box-sizing:border-box;
-}
-
-html,body {
-  margin:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
-  background:#101010;
-  font-family:Arial,sans-serif;
-}
-
-body {
-  height:100dvh;
-}
-
-/* Celozaslonski prikaz kot v v13. */
-video,video.arjs-video,body>video {
-  position:fixed!important;
-  top:0!important;
-  left:0!important;
-  width:100vw!important;
-  height:100dvh!important;
-  max-width:none!important;
-  max-height:none!important;
-  object-fit:cover!important;
-  transform:none!important;
-  margin:0!important;
-  display:block!important;
-  visibility:visible!important;
-  opacity:1!important;
-  z-index:0!important;
-}
-
-a-scene {
-  position:fixed!important;
-  inset:0!important;
-  width:100vw!important;
-  height:100dvh!important;
-  background:transparent!important;
-  z-index:1!important;
-}
-
-a-scene canvas {
-  background:transparent!important;
-}
-
-.a-enter-vr,.a-enter-ar {
-  display:none!important;
-}
-
-#hud {
-  position:fixed;
-  top:calc(7px + env(safe-area-inset-top));
-  left:8px;
-  right:8px;
-  z-index:9000;
-  color:#fff;
-  text-align:center;
-  pointer-events:none;
-}
-
-#status,#diag {
-  background:rgba(4,15,24,.79);
-  border-radius:9px;
-  padding:7px 8px;
-  margin-bottom:4px;
-  overflow-wrap:anywhere;
-}
-
-#status {
-  font-size:13px;
-  font-weight:bold;
-}
-
-#diag {
-  font-size:10px;
-  color:#c8edff;
-}
-
-#controls {
-  position:fixed;
-  z-index:10000;
-  left:max(8px,env(safe-area-inset-left));
-  right:max(8px,env(safe-area-inset-right));
-  bottom:calc(8px + env(safe-area-inset-bottom));
-  max-width:620px;
-  margin:0 auto;
-  color:#fff;
-  background:rgba(8,18,30,.95);
-  border:1px solid #7992aa;
-  border-radius:12px;
-  padding:9px;
-}
-
-#choices {
-  display:grid;
-  grid-template-columns:repeat(4,minmax(0,1fr));
-  gap:5px;
-}
-
-button {
-  touch-action:manipulation;
-  cursor:pointer;
-}
-
-#choices button {
-  color:#fff;
-  background:#2c455b;
-  border:1px solid #879eb3;
-  border-radius:8px;
-  font-size:12px;
-  font-weight:bold;
-  padding:10px 3px;
-  min-height:40px;
-}
-
-#choices button.selected {
-  background:#1766b8;
-  border-color:#8bcfff;
-}
-
-#controls small {
-  display:block;
-  color:#c9dbeb;
-  text-align:center;
-  font-size:10px;
-  line-height:1.5;
-  margin-top:5px;
-}
-
-#toggle {
-  display:block;
-  width:100%;
-  margin-top:6px;
-  color:#fff;
-  background:#29435b;
-  border:1px solid #829bb0;
-  border-radius:8px;
-  padding:8px;
-  font-size:12px;
-  font-weight:bold;
-}
-
-#panel {
-  display:none;
-  max-height:43dvh;
-  overflow-y:auto;
-  border-top:1px solid #526c81;
-  margin-top:8px;
-  padding:3px 3px 5px;
-  font-size:12px;
-}
-
-#panel.open {
-  display:block;
-}
-
-#panel label {
-  display:block;
-  margin-top:10px;
-}
-
-#panel input[type=range],
-#panel select {
-  width:100%;
-}
-
-#panel input[type=range] {
-  accent-color:#44d2ff;
-}
-
-#panel select,#panel .secondary {
-  background:#263f56;
-  color:#fff;
-  border:1px solid #809aaf;
-  border-radius:7px;
-  padding:8px;
-}
-
-#panel .secondary {
-  margin-top:7px;
-}
-
-#panel .check {
-  display:flex;
-  align-items:center;
-  gap:7px;
-}
-
-#panel .check input {
-  width:17px;
-  height:17px;
-}
-
-#panel b {
-  color:#8eeaff;
-}
-
-#panel p {
-  line-height:1.45;
-  color:#c6dceb;
-}
+*,*:before,*:after{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#111;font-family:Arial,sans-serif}
+body{height:100dvh}
+video,video.arjs-video,body>video{position:fixed!important;top:0!important;left:0!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;object-fit:cover!important;transform:none!important;margin:0!important;display:block!important;opacity:1!important;visibility:visible!important;z-index:0!important}
+a-scene{position:fixed!important;inset:0!important;width:100vw!important;height:100dvh!important;background:transparent!important;z-index:1!important}
+a-scene canvas{background:transparent!important}.a-enter-ar,.a-enter-vr{display:none!important}
+#hud{position:fixed;z-index:9000;top:calc(6px + env(safe-area-inset-top));left:8px;right:8px;color:#fff;text-align:center;pointer-events:none}
+#status,#diag{margin-bottom:4px;padding:6px 8px;border-radius:9px;background:#061321d9;overflow-wrap:anywhere}
+#status{font-size:13px;font-weight:700}#diag{font-size:10px;color:#c6eaff}
+#bottom{position:fixed;z-index:10001;bottom:calc(8px + env(safe-area-inset-bottom));left:8px;right:8px;max-width:550px;margin:auto;color:#fff;background:#0b1b2cf2;border:1px solid #668da9;border-radius:12px;padding:8px}
+#switches{display:grid;grid-template-columns:repeat(4,1fr);gap:5px}
+button{touch-action:manipulation;cursor:pointer}
+#switches button{min-height:38px;border-radius:7px;border:1px solid #7798ae;background:#29465d;color:#fff;font-size:12px;font-weight:700;padding:5px 2px}
+#switches button.selected{background:#1468b9;border-color:#a1dfff}
+#legend{margin-top:6px;font-size:10px;color:#d8e8f2;text-align:center;line-height:1.5}
+#toggle{display:block;width:100%;margin-top:6px;padding:8px;background:#254b71;color:#fff;border:1px solid #789ab4;border-radius:7px;font-weight:700}
+#panel{display:none;max-height:48dvh;overflow:auto;padding:5px 4px 8px;margin-top:6px;border-top:1px solid #5a7891;font-size:12px}
+#panel.open{display:block}#panel label{display:block;margin-top:10px}
+#panel label.check{display:flex;align-items:center;gap:7px}#panel .check input{width:17px;height:17px}
+#panel input[type=range],#panel select{width:100%}#panel input[type=range]{accent-color:#39c9f7}
+#panel select,#panel button{background:#29475f;color:#fff;border:1px solid #829fb4;border-radius:7px;padding:8px;margin-top:6px}
+#panel b{color:#80e0ff}#panel p{color:#d2e0ea;line-height:1.4}
+#panel h3{font-size:12px;color:#89dfff;margin-bottom:4px;border-bottom:1px solid #567085;padding-bottom:4px}
 </style>
 </head>
-
 <body>
-
 <div id="hud">
-  <div id="status">
-    Coil AR v17 — iščem markerja ID 5 / ID 6 …
-  </div>
-  <div id="diag">
-    Skupno središče: pravi kot na skici · R = 15 cm
-  </div>
+  <div id="status">Coil AR v18 · iščem ID 5 in ID 6 …</div>
+  <div id="diag">Rdeča X · zelena Y · modra Z</div>
 </div>
-
-<a-scene
-  embedded
-  vr-mode-ui="enabled:false"
-  device-orientation-permission-ui="enabled:false"
-  renderer="alpha:true;antialias:true"
-  arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;maxDetectionRate:30;">
-
-  <!-- ID 5: 35 mm -->
-  <a-marker
-    id="marker5"
-    type="barcode"
-    value="5"
-    size="0.035"
-    emitevents="true"
-    smooth="false">
-
-    <a-entity id="frame5"></a-entity>
-
-    <a-entity id="board5">
-      <a-entity id="center5"></a-entity>
-    </a-entity>
-
-  </a-marker>
-
-  <!-- ID 6: 30 mm -->
-  <a-marker
-    id="marker6"
-    type="barcode"
-    value="6"
-    size="0.030"
-    emitevents="true"
-    smooth="false">
-
-    <a-entity id="frame6"></a-entity>
-
-    <a-entity id="board6">
-      <a-entity id="center6"></a-entity>
-    </a-entity>
-
-  </a-marker>
-
-  <a-entity camera></a-entity>
-
+<a-scene embedded vr-mode-ui="enabled:false" device-orientation-permission-ui="enabled:false"
+ renderer="alpha:true;antialias:true"
+ arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;maxDetectionRate:30;">
+ <a-marker id="marker5" type="barcode" value="5" size="0.035" emitevents="true" smooth="false">
+   <a-entity id="debug5"></a-entity>
+   <a-entity id="board5"><a-entity id="center5"></a-entity></a-entity>
+ </a-marker>
+ <a-marker id="marker6" type="barcode" value="6" size="0.030" emitevents="true" smooth="false">
+   <a-entity id="debug6"></a-entity>
+   <a-entity id="board6"><a-entity id="center6"></a-entity></a-entity>
+ </a-marker>
+ <a-entity camera></a-entity>
 </a-scene>
-
-<!-- SPODNJI GUMBI -->
-<div id="controls">
-
-  <div id="choices">
-    <button type="button" data-mode="auto" class="selected">
-      Samodejno
-    </button>
-    <button type="button" data-mode="5">
-      ID 5
-    </button>
-    <button type="button" data-mode="6">
-      ID 6
-    </button>
-    <button type="button" data-mode="both">
-      Oba
-    </button>
-  </div>
-
-  <small>
-    Oranžna = središče iz ID 5 · modra = središče iz ID 6
-  </small>
-
-  <button type="button" id="toggle">
-    ⚙ Nastavitve in orientacija markerjev
-  </button>
-
-  <div id="panel">
-
-    <p>
-      <b>Pravi kot na skici = (0, 0, 0).</b>
-      ID 5 je 5,75 cm levo; ID 6 je 14,5 cm spodaj.
-      Oba sta na isti višini.
-      V testu ni magnetnih silnic ali animacije.
-    </p>
-
-    <label>
-      Zasuk ravnine glede na ID 5:
-      <b id="yaw5Val">0°</b>
-    </label>
-    <input id="yaw5" type="range"
-      min="-180" max="180" step="5" value="0">
-
-    <label>
-      Zasuk ravnine glede na ID 6:
-      <b id="yaw6Val">0°</b>
-    </label>
-    <input id="yaw6" type="range"
-      min="-180" max="180" step="5" value="0">
-
-    <p>
-      Če se dva obroča pri izbiri »Oba« ne prekrivata,
-      preizkusi predvsem vrednosti 0°, 90°, 180°
-      in −90°. Vzorca imata lahko različno lokalno
-      orientacijo.
-    </p>
-
-    <label class="check">
-      <input id="showPlane" type="checkbox" checked>
-      Prikaži majhno ravnino XZ v središču
-    </label>
-
-    <label class="check">
-      <input id="showAxes" type="checkbox" checked>
-      Prikaži pravokotne osi XYZ
-    </label>
-
-    <label class="check">
-      <input id="showFrames" type="checkbox" checked>
-      Prikaži okvir na obeh markerjih
-    </label>
-
-    <label>
-      Merilo celotnega modela:
-      <b id="calVal">1.00×</b>
-    </label>
-    <input id="cal" type="range"
-      min="0.5" max="1.8" step="0.05" value="1">
-
-    <label>Kamera</label>
-    <select id="cameraSelect">
-      <option value="">Privzeta zadnja kamera</option>
-    </select>
-
-    <button type="button" class="secondary" id="useCamera">
-      Uporabi izbrano kamero
-    </button>
-
-    <button type="button" class="secondary" id="reset">
-      Ponastavi preizkus
-    </button>
-
-  </div>
-
+<div id="bottom">
+ <div id="switches">
+  <button data-mode="axes" class="selected" type="button">Samo XYZ</button>
+  <button data-mode="5" type="button">ID 5</button>
+  <button data-mode="6" type="button">ID 6</button>
+  <button data-mode="both" type="button">Oba + obroča</button>
+ </div>
+ <div id="legend">XYZ sta pritrjena neposredno na vsak marker. <span style="color:#ffbd70">Oranžno = ID 5</span>, <span style="color:#48dfff">cian = ID 6</span>.</div>
+ <button id="toggle" type="button">⚙ Nastavitve in ravnini XY / XZ</button>
+ <div id="panel">
+  <p>Najprej izberi <b>Samo XYZ</b>. Osi se ne odzivajo na nastavitve zasuka obroča. Oglej si, ali je zelena Y pravokotna na površino obeh markerjev.</p>
+  <h3>REFERENČNI RAVNINI OBEH MARKERJEV</h3>
+  <label class="check"><input id="showXZ" type="checkbox" checked><b style="color:#65f5ff">Cian XZ</b> – kvadrat ob markerju</label>
+  <label class="check"><input id="showXY" type="checkbox"><b style="color:#ff72d2">Roza XY</b> – alternativni kvadrat</label>
+  <label class="check"><input id="showAxes" type="checkbox" checked>XYZ osi ID 5 in ID 6 (neodvisno)</label>
+  <label class="check"><input id="showLabels" type="checkbox" checked>Oznake ID / X / Y / Z</label>
+  <h3>SKUPNO SREDIŠČE IN KROŽNICA</h3>
+  <p>Pravi kot skice = (0,0,0). Iz ID 5 do središča: 57,5 mm v desno. Iz ID 6 do središča: 145 mm navzgor po skici. R = 15 cm.</p>
+  <label>Ravnina modela (obeh obročev)
+   <select id="modelPlane"><option value="XZ">XZ (privzeto)</option><option value="XY">XY – preizkus</option></select>
+  </label>
+  <label>Zasuk modela ID 5 okoli normale: <b id="yaw5Val">0°</b></label>
+  <input id="yaw5" type="range" min="-180" max="180" step="5" value="0">
+  <label>Zasuk modela ID 6 okoli normale: <b id="yaw6Val">0°</b></label>
+  <input id="yaw6" type="range" min="-180" max="180" step="5" value="0">
+  <label>Merilo krožnice: <b id="calVal">1.00×</b></label>
+  <input id="cal" type="range" min="0.5" max="1.8" step="0.05" value="1">
+  <label>Kamera</label><select id="cameraSelect"><option value="">Privzeta zadnja kamera</option></select>
+  <button id="useCamera" type="button">Uporabi kamero ↻</button>
+  <button id="reset" type="button">Ponastavi nastavitve v18</button>
+ </div>
 </div>
-
 <script>
 (() => {
 'use strict';
-
-const $ = id => document.getElementById(id);
-
-const marker5 = $('marker5');
-const marker6 = $('marker6');
-
-const scene = document.querySelector('a-scene');
-
-const board5 = $('board5');
-const board6 = $('board6');
-
-const center5 = $('center5');
-const center6 = $('center6');
-
-const frame5 = $('frame5');
-const frame6 = $('frame6');
-
-const status = $('status');
-const diag = $('diag');
-
-/* ===============================================
-   MERE Z RDEČE OZNAČENE SKICE — V CENTIMETRIH
-
-   Skupno središče = pravi kot.
-
-   Položaj ID 5 = (-5.75, 0, 0)
-   Položaj ID 6 = (0, 0, +14.5)
-
-   Zato od markerjev proti središču:
-   =============================================== */
-
-const FROM_ID5_TO_CENTER_CM =
-  new THREE.Vector3(5.75,0,0);
-
-const FROM_ID6_TO_CENTER_CM =
-  new THREE.Vector3(0,0,-14.5);
-
-const RADIUS_CM = 15;
-
-const SIZE5_CM = 3.5;
-const SIZE6_CM = 3.0;
-
-const DEFAULTS = {
-  mode:'auto',
-
-  yaw5:0,
-  yaw6:0,
-
-  cal:1,
-
-  showPlane:true,
-  showAxes:true,
-  showFrames:true
-};
-
-let cfg = {...DEFAULTS};
-
-let found5 = false;
-let found6 = false;
-
-let initialized = false;
-
-let content5 = null;
-let content6 = null;
-
-/* ===============================================
-   SHRANJENE NASTAVITVE
-   =============================================== */
-
+const $=id=>document.getElementById(id);
+const scene=document.querySelector('a-scene');
+const markers=[$('marker5'),$('marker6')];
+const boards=[$('board5'),$('board6')];
+const centers=[$('center5'),$('center6')];
+const debugEls=[$('debug5'),$('debug6')];
+const markerSizes=[3.5,3.0];
+// Od markerja proti skupnemu središču, v cm (na skici X desno, Z dol).
+const offsets=[new THREE.Vector3(5.75,0,0),new THREE.Vector3(0,0,-14.5)];
+const DEFAULT={mode:'axes',modelPlane:'XZ',showXZ:true,showXY:false,showAxes:true,showLabels:true,yaw5:0,yaw6:0,cal:1};
+let cfg={...DEFAULT};
+let ready=false, seen=[false,false];
+let visuals=[], models=[];
 try {
-
-  const saved = JSON.parse(
-    localStorage.getItem('coilARv17') || 'null'
-  );
-
-  if (saved && typeof saved === 'object') {
-
-    if (
-      ['auto','5','6','both'].includes(saved.mode)
-    ) {
-      cfg.mode = saved.mode;
-    }
-
-    for (const key of ['yaw5','yaw6','cal']) {
-
-      if (
-        Number.isFinite(Number(saved[key]))
-      ) {
-        cfg[key] = Number(saved[key]);
-      }
-    }
-
-    for (const key of [
-      'showPlane','showAxes','showFrames'
-    ]) {
-
-      if (typeof saved[key] === 'boolean') {
-        cfg[key] = saved[key];
-      }
-    }
-  }
-
+ const saved=JSON.parse(localStorage.getItem('coilARv18')||'null');
+ if(saved) {
+   for(const k of Object.keys(DEFAULT)) if(typeof saved[k]===typeof DEFAULT[k]) cfg[k]=saved[k];
+ }
 } catch(e) {}
 
-/* ===============================================
-   REFERENČNI OKVIR NA MARKERJU
-   =============================================== */
-
-function buildFrame(parent,color) {
-
-  const group = new THREE.Group();
-
-  const corners = [
-    new THREE.Vector3(-.5,.015,-.5),
-    new THREE.Vector3(.5,.015,-.5),
-    new THREE.Vector3(.5,.015,.5),
-    new THREE.Vector3(-.5,.015,.5)
-  ];
-
-  const geometry =
-    new THREE.BufferGeometry()
-      .setFromPoints(corners);
-
-  const material =
-    new THREE.LineBasicMaterial({
-      color,
-      depthTest:false
-    });
-
-  group.add(
-    new THREE.LineLoop(geometry,material)
-  );
-
-  for (const p of corners) {
-
-    const dot = new THREE.Mesh(
-      new THREE.SphereGeometry(.025,6,5),
-      new THREE.MeshBasicMaterial({
-        color,
-        depthTest:false
-      })
-    );
-
-    dot.position.copy(p);
-
-    group.add(dot);
-  }
-
-  parent.object3D.add(group);
+function makeLabel(str,pos,color,scale=.24){
+ const c=document.createElement('canvas');c.width=256;c.height=128;
+ const ctx=c.getContext('2d');ctx.clearRect(0,0,256,128);
+ ctx.fillStyle='rgba(0,0,0,0.72)';ctx.fillRect(0,18,256,90);
+ ctx.font='bold 55px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillStyle=color;
+ ctx.fillText(str,128,64);
+ const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;
+ const m=new THREE.SpriteMaterial({map:t,depthTest:false,transparent:true});
+ const s=new THREE.Sprite(m);s.scale.set(scale*2,scale,1);s.position.copy(pos);s.renderOrder=15;
+ return s;
 }
-
-/* ===============================================
-   KOORDINATNE OSI
-   =============================================== */
-
-function addAxis(parent,vector,length,color) {
-
-  const direction =
-    vector.clone().normalize();
-
-  const arrow = new THREE.ArrowHelper(
-    direction,
-    new THREE.Vector3(),
-    length,
-    color,
-    .95,
-    .48
-  );
-
-  parent.add(arrow);
+function square(plane,color,opacity){
+ const g=new THREE.Group();
+ const pts=(plane==='XZ')?
+  [[-.5,.007,-.5],[.5,.007,-.5],[.5,.007,.5],[-.5,.007,.5]]:
+  [[-.5,-.5,.007],[.5,-.5,.007],[.5,.5,.007],[-.5,.5,.007]];
+ const vertices=pts.map(p=>new THREE.Vector3(...p));
+ g.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(vertices),new THREE.LineBasicMaterial({color,depthTest:false})));
+ const fill=new THREE.Mesh(new THREE.PlaneGeometry(1,1),new THREE.MeshBasicMaterial({color,transparent:true,opacity,side:THREE.DoubleSide,depthWrite:false}));
+ if(plane==='XZ'){fill.rotation.x=-Math.PI/2;fill.position.y=.003;}else fill.position.z=.003;
+ g.add(fill);
+ for(const v of vertices){
+  const dot=new THREE.Mesh(new THREE.SphereGeometry(.025,7,5),new THREE.MeshBasicMaterial({color,depthTest:false}));
+  dot.position.copy(v);g.add(dot);
+ }
+ return g;
 }
-
-/* ===============================================
-   KROŽNICA IN RAVNINA XZ
-
-   Dimenzije modela so v centimetrih.
-   =============================================== */
-
-function buildContent(parent,color) {
-
-  const root = new THREE.Group();
-
-  // KROŽNICA R = 15 cm
-
-  const ringPoints = [];
-
-  for (let i=0; i<128; i++) {
-
-    const a = 2*Math.PI*i/128;
-
-    ringPoints.push(
-      new THREE.Vector3(
-        RADIUS_CM*Math.cos(a),
-        0,
-        RADIUS_CM*Math.sin(a)
-      )
-    );
-  }
-
-  const circle = new THREE.CatmullRomCurve3(
-    ringPoints,
-    true,
-    'centripetal'
-  );
-
-  const ring = new THREE.Mesh(
-    new THREE.TubeGeometry(
-      circle,
-      160,
-      .30,
-      8,
-      true
-    ),
-    new THREE.MeshBasicMaterial({
-      color
-    })
-  );
-
-  root.add(ring);
-
-  // RAVNINA XZ
-
-  const planeGroup = new THREE.Group();
-
-  const plane = new THREE.Mesh(
-    new THREE.PlaneGeometry(9,9),
-    new THREE.MeshBasicMaterial({
-      color,
-      side:THREE.DoubleSide,
-      transparent:true,
-      opacity:.19,
-      depthWrite:false
-    })
-  );
-
-  plane.rotation.x = -Math.PI/2;
-
-  planeGroup.add(plane);
-
-  const corners = [
-    [-4.5,0,-4.5],
-    [4.5,0,-4.5],
-    [4.5,0,4.5],
-    [-4.5,0,4.5]
-  ].map(
-    p => new THREE.Vector3(...p)
-  );
-
-  planeGroup.add(
-    new THREE.LineLoop(
-      new THREE.BufferGeometry()
-        .setFromPoints(corners),
-      new THREE.LineBasicMaterial({color})
-    )
-  );
-
-  root.add(planeGroup);
-
-  // XYZ OSI
-
-  const axesGroup = new THREE.Group();
-
-  addAxis(
-    axesGroup,
-    new THREE.Vector3(1,0,0),
-    7,
-    0xff4444
-  );
-
-  addAxis(
-    axesGroup,
-    new THREE.Vector3(0,1,0),
-    5,
-    0x42ff76
-  );
-
-  addAxis(
-    axesGroup,
-    new THREE.Vector3(0,0,1),
-    7,
-    0x329bff
-  );
-
-  // Bela točka označuje izhodišče.
-
-  axesGroup.add(
-    new THREE.Mesh(
-      new THREE.SphereGeometry(.48,10,8),
-      new THREE.MeshBasicMaterial({
-        color:0xffffff
-      })
-    )
-  );
-
-  root.add(axesGroup);
-
-  parent.object3D.add(root);
-
-  return {
-    root,
-    planeGroup,
-    axesGroup
-  };
+function buildDebug(el,id){
+ const root=new THREE.Group();
+ const xz=square('XZ',0x45eafa,.10); const xy=square('XY',0xff64c4,.10);
+ root.add(xz,xy);
+ const axes=new THREE.Group();
+ const defs=[['X',new THREE.Vector3(1,0,0),0xff3838,'#ff7777'],['Y',new THREE.Vector3(0,1,0),0x22ff50,'#77ff91'],['Z',new THREE.Vector3(0,0,1),0x319cff,'#8ac8ff']];
+ for(const [name,dir,color,css] of defs){
+  const arrow=new THREE.ArrowHelper(dir,new THREE.Vector3(),.83,color,.19,.11);
+  axes.add(arrow);
+  const label=makeLabel(name,dir.clone().multiplyScalar(1.00),css,.20);
+  label.userData.axisLabel=true;axes.add(label);
+ }
+ const dot=new THREE.Mesh(new THREE.SphereGeometry(.055,10,8),new THREE.MeshBasicMaterial({color:0xffffff}));
+ axes.add(dot);root.add(axes);
+ const name=makeLabel('ID '+id,new THREE.Vector3(-.02,.10,-.75),'#ffffff',.28);
+ name.userData.idLabel=true;root.add(name);
+ el.object3D.add(root);
+ return {root,xz,xy,axes,name};
 }
-
-/* ===============================================
-   POSODOBITEV CELOTNEGA PRIKAZA
-   =============================================== */
-
-function update() {
-
-  cfg.yaw5 = Math.max(
-    -180,
-    Math.min(180,cfg.yaw5)
-  );
-
-  cfg.yaw6 = Math.max(
-    -180,
-    Math.min(180,cfg.yaw6)
-  );
-
-  cfg.cal = Math.max(
-    .5,
-    Math.min(1.8,cfg.cal)
-  );
-
-  // Pretvorba centimetrov v enote posameznega
-  // markerja. Markerja sta različno velika.
-
-  board5.object3D.scale.setScalar(
-    1/SIZE5_CM
-  );
-
-  board6.object3D.scale.setScalar(
-    1/SIZE6_CM
-  );
-
-  // Korekcija velikosti krožnice ne spreminja
-  // izmerjenega odmika do skupnega središča.
-
-  if (content5) {
-    content5.root.scale.setScalar(cfg.cal);
-  }
-
-  if (content6) {
-    content6.root.scale.setScalar(cfg.cal);
-  }
-
-  // Ločeno upoštevamo orientaciji markerjev.
-
-  board5.object3D.rotation.y =
-    THREE.MathUtils.degToRad(cfg.yaw5);
-
-  board6.object3D.rotation.y =
-    THREE.MathUtils.degToRad(cfg.yaw6);
-
-  // Skupno središče v pravem kotu skice.
-
-  center5.object3D.position.copy(
-    FROM_ID5_TO_CENTER_CM
-  );
-
-  center6.object3D.position.copy(
-    FROM_ID6_TO_CENTER_CM
-  );
-
-  // Vidnost ravnine in osi.
-
-  if (content5) {
-
-    content5.planeGroup.visible =
-      cfg.showPlane;
-
-    content5.axesGroup.visible =
-      cfg.showAxes;
-  }
-
-  if (content6) {
-
-    content6.planeGroup.visible =
-      cfg.showPlane;
-
-    content6.axesGroup.visible =
-      cfg.showAxes;
-  }
-
-  frame5.object3D.visible =
-    cfg.showFrames;
-
-  frame6.object3D.visible =
-    cfg.showFrames;
-
-  // IZBIRA MARKERJEV
-
-  const display5 =
-    cfg.mode === '5' ||
-    cfg.mode === 'both' ||
-    (cfg.mode === 'auto' && found5);
-
-  const display6 =
-    cfg.mode === '6' ||
-    cfg.mode === 'both' ||
-    (cfg.mode === 'auto' && !found5);
-
-  board5.object3D.visible = display5;
-  board6.object3D.visible = display6;
-
-  // Označimo izbran način.
-
-  for (
-    const button of
-    document.querySelectorAll('[data-mode]')
-  ) {
-
-    button.classList.toggle(
-      'selected',
-      button.dataset.mode === cfg.mode
-    );
-  }
-
-  $('yaw5').value = cfg.yaw5;
-  $('yaw6').value = cfg.yaw6;
-  $('cal').value = cfg.cal;
-
-  $('yaw5Val').textContent =
-    cfg.yaw5+'°';
-
-  $('yaw6Val').textContent =
-    cfg.yaw6+'°';
-
-  $('calVal').textContent =
-    cfg.cal.toFixed(2)+'×';
-
-  for (const key of [
-    'showPlane','showAxes','showFrames'
-  ]) {
-
-    $(key).checked = cfg[key];
-  }
-
-  // DIAGNOSTIKA ZAZNAVANJA
-
-  const active =
-    cfg.mode === 'auto'
-      ? (
-          found5
-            ? 'ID 5'
-            : found6
-              ? 'ID 6'
-              : 'noben'
-        )
-      : cfg.mode === 'both'
-        ? 'oba'
-        : 'ID '+cfg.mode;
-
-  status.textContent =
-    `ID 5: ${found5?'DA':'NE'}`+
-    ` · ID 6: ${found6?'DA':'NE'}`+
-    ` · prikaz: ${active}`;
-
-  // Shranimo samo nastavitve te testne različice.
-
-  try {
-
-    localStorage.setItem(
-      'coilARv17',
-      JSON.stringify(cfg)
-    );
-
-  } catch(e) {}
+function buildModel(el,color){
+ const root=new THREE.Group();
+ const ringPts=[];
+ for(let i=0;i<160;i++){
+  const a=i*2*Math.PI/160;
+  ringPts.push(new THREE.Vector3(15*Math.cos(a),0,15*Math.sin(a)));
+ }
+ const curve=new THREE.CatmullRomCurve3(ringPts,true,'centripetal');
+ root.add(new THREE.Mesh(new THREE.TubeGeometry(curve,192,.23,8,true),new THREE.MeshBasicMaterial({color})));
+ const plane=new THREE.Mesh(new THREE.PlaneGeometry(6,6),new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,opacity:.22,depthWrite:false}));
+ plane.rotation.x=-Math.PI/2;root.add(plane);
+ root.add(new THREE.Mesh(new THREE.SphereGeometry(.45,10,8),new THREE.MeshBasicMaterial({color:0xffffff})));
+ el.object3D.add(root);
+ return root;
 }
-
-/* ===============================================
-   ZAGON
-   =============================================== */
-
-function init() {
-
-  if (initialized) return;
-
-  initialized = true;
-
-  // Okvir neposredno na markerjih.
-
-  buildFrame(frame5,0xffb455);
-  buildFrame(frame6,0x47eeff);
-
-  // Vsak marker sam izračuna isto fizično
-  // središče tuljave.
-
-  content5 = buildContent(
-    center5,
-    0xff9b31
-  );
-
-  content6 = buildContent(
-    center6,
-    0x19d7ff
-  );
-
-  update();
+function apply(){
+ cfg.cal=Math.max(.5,Math.min(1.8,Number(cfg.cal)||1));
+ [0,1].forEach(i=>{
+  const obj=models[i];
+  // Fizične mere so v cm in se pretvorijo v velikost posameznega markerja.
+  boards[i].object3D.scale.setScalar(1/markerSizes[i]);
+  // Zasuk koordinat skice in izbira ravnine sta ločena od XYZ markerja.
+  const yaw=THREE.MathUtils.degToRad(i===0?cfg.yaw5:cfg.yaw6);
+  if(cfg.modelPlane==='XZ'){
+   boards[i].object3D.rotation.set(0,yaw,0,'YXZ');
+  }else{
+   boards[i].object3D.rotation.set(Math.PI/2,0,yaw,'XYZ');
+  }
+  centers[i].object3D.position.copy(offsets[i]);
+  obj.scale.setScalar(cfg.cal);
+  obj.visible=cfg.mode==='both'||cfg.mode===String(i===0?5:6);
+  visuals[i].xz.visible=cfg.showXZ;
+  visuals[i].xy.visible=cfg.showXY;
+  visuals[i].axes.visible=cfg.showAxes;
+  visuals[i].name.visible=cfg.showLabels;
+  visuals[i].axes.children.forEach(c=>{if(c.userData.axisLabel)c.visible=cfg.showLabels;});
+ });
+ for(const button of document.querySelectorAll('[data-mode]'))button.classList.toggle('selected',button.dataset.mode===cfg.mode);
+ for(const key of ['showXZ','showXY','showAxes','showLabels'])$(key).checked=cfg[key];
+ $('modelPlane').value=cfg.modelPlane;
+ for(const key of ['yaw5','yaw6','cal'])$(key).value=cfg[key];
+ $('yaw5Val').textContent=cfg.yaw5+'°';$('yaw6Val').textContent=cfg.yaw6+'°';$('calVal').textContent=cfg.cal.toFixed(2)+'×';
+ $('status').textContent=`ID 5 ${seen[0]?'✓':'–'} · ID 6 ${seen[1]?'✓':'–'} · ${cfg.mode==='axes'?'samo XYZ':cfg.mode==='both'?'oba obroča':'obroč ID '+cfg.mode}`;
+ try{localStorage.setItem('coilARv18',JSON.stringify(cfg));}catch(e){}
 }
-
-scene.addEventListener('loaded',init);
-
-if (scene.hasLoaded) {
-  init();
+function init(){
+ if(ready)return;ready=true;
+ visuals=[buildDebug(debugEls[0],5),buildDebug(debugEls[1],6)];
+ models=[buildModel(centers[0],0xffa139),buildModel(centers[1],0x27dfff)];
+ apply();
 }
-
-/* ===============================================
-   ZAZNAVANJE DVEH MARKERJEV
-   =============================================== */
-
-marker5.addEventListener(
-  'markerFound',
-  () => {
-
-    found5 = true;
-    update();
-  }
-);
-
-marker5.addEventListener(
-  'markerLost',
-  () => {
-
-    found5 = false;
-    update();
-  }
-);
-
-marker6.addEventListener(
-  'markerFound',
-  () => {
-
-    found6 = true;
-    update();
-  }
-);
-
-marker6.addEventListener(
-  'markerLost',
-  () => {
-
-    found6 = false;
-    update();
-  }
-);
-
-/* ===============================================
-   SPODNJI GUMBI
-   =============================================== */
-
-for (
-  const button of
-  document.querySelectorAll('[data-mode]')
-) {
-
-  button.addEventListener('click',() => {
-
-    cfg.mode = button.dataset.mode;
-    update();
-  });
-}
-
-$('toggle').addEventListener('click',() => {
-
-  const opened =
-    $('panel').classList.toggle('open');
-
-  $('toggle').textContent =
-    opened
-      ? '✕ Zapri nastavitve'
-      : '⚙ Nastavitve in orientacija markerjev';
+scene.addEventListener('loaded',init);if(scene.hasLoaded)init();
+markers.forEach((m,i)=>{
+ m.addEventListener('markerFound',()=>{seen[i]=true;if(ready)apply();});
+ m.addEventListener('markerLost',()=>{seen[i]=false;if(ready)apply();});
 });
-
-/* ===============================================
-   NASTAVITVE ORIENTACIJE
-   =============================================== */
-
-for (const key of ['yaw5','yaw6','cal']) {
-
-  $(key).addEventListener('input',() => {
-
-    cfg[key] = Number($(key).value);
-    update();
-  });
+document.querySelectorAll('[data-mode]').forEach(button=>button.addEventListener('click',()=>{cfg.mode=button.dataset.mode;apply();}));
+$('toggle').addEventListener('click',()=>{$('panel').classList.toggle('open');$('toggle').textContent=$('panel').classList.contains('open')?'✕ Zapri nastavitve':'⚙ Nastavitve in ravnini XY / XZ';});
+for(const key of ['showXZ','showXY','showAxes','showLabels'])$(key).addEventListener('change',()=>{cfg[key]=$(key).checked;apply();});
+for(const key of ['yaw5','yaw6','cal'])$(key).addEventListener('input',()=>{cfg[key]=Number($(key).value);apply();});
+$('modelPlane').addEventListener('change',()=>{cfg.modelPlane=$('modelPlane').value;apply();});
+$('reset').addEventListener('click',()=>{cfg={...DEFAULT};apply();});
+async function listCameras(){
+ const select=$('cameraSelect'); const selected=sessionStorage.getItem('coilCameraId')||'';
+ select.replaceChildren(new Option('Privzeta zadnja kamera',''));
+ if(!navigator.mediaDevices?.enumerateDevices)return;
+ try{
+  const ds=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='videoinput');
+  ds.forEach((d,i)=>select.add(new Option(d.label||`Kamera ${i+1}`,d.deviceId)));
+  if([...select.options].some(o=>o.value===selected))select.value=selected;
+ }catch(e){console.warn(e);}
 }
-
-for (const key of [
-  'showPlane','showAxes','showFrames'
-]) {
-
-  $(key).addEventListener('change',() => {
-
-    cfg[key] = $(key).checked;
-    update();
-  });
-}
-
-$('reset').addEventListener('click',() => {
-
-  cfg = {...DEFAULTS};
-
-  update();
+$('useCamera').addEventListener('click',()=>{
+ const id=$('cameraSelect').value;
+ if(id)sessionStorage.setItem('coilCameraId',id);else sessionStorage.removeItem('coilCameraId');
+ location.reload();
 });
-
-/* ===============================================
-   IZBIRA KAMERE
-   =============================================== */
-
-async function listCameras() {
-
-  const sel = $('cameraSelect');
-
-  const chosen =
-    sessionStorage.getItem('coilCameraId') || '';
-
-  sel.replaceChildren(
-    new Option('Privzeta zadnja kamera','')
-  );
-
-  if (
-    !navigator.mediaDevices?.enumerateDevices
-  ) return;
-
-  try {
-
-    const devices = (
-      await navigator.mediaDevices.enumerateDevices()
-    ).filter(
-      d => d.kind === 'videoinput'
-    );
-
-    devices.forEach((d,i) => {
-
-      sel.add(
-        new Option(
-          d.label || `Kamera ${i+1}`,
-          d.deviceId
-        )
-      );
-    });
-
-    if (
-      [...sel.options].some(
-        o => o.value === chosen
-      )
-    ) {
-
-      sel.value = chosen;
-    }
-
-  } catch(e) {
-
-    console.warn('Kamera:',e);
-  }
+function diagnostics(){
+ const video=[...document.querySelectorAll('video')].find(v=>v.srcObject)||document.querySelector('video');
+ if(video){video.setAttribute('playsinline','');video.muted=true;}
+ if(scene.renderer){scene.renderer.setClearColor(0,0);scene.renderer.setClearAlpha(0);}
+ const canvas=scene.querySelector('canvas');if(canvas)canvas.style.setProperty('background','transparent','important');
+ const track=video?.srcObject?.getVideoTracks?.()[0];
+ $('diag').textContent=`Video ${video?.videoWidth||0}×${video?.videoHeight||0} · ID 5: 35 mm · ID 6: 30 mm · ${track?.label||'kamera'}`;
 }
-
-$('useCamera').addEventListener('click',() => {
-
-  const id = $('cameraSelect').value;
-
-  if (id) {
-
-    sessionStorage.setItem(
-      'coilCameraId',
-      id
-    );
-
-  } else {
-
-    sessionStorage.removeItem(
-      'coilCameraId'
-    );
-  }
-
-  location.reload();
-});
-
-/* ===============================================
-   VIDEO DIAGNOSTIKA
-   =============================================== */
-
-function diagnostics() {
-
-  const video = [
-    ...document.querySelectorAll('video')
-  ].find(
-    v => v.srcObject
-  ) || document.querySelector('video');
-
-  if (video) {
-
-    video.setAttribute(
-      'playsinline',
-      ''
-    );
-
-    video.muted = true;
-  }
-
-  if (scene.renderer) {
-
-    scene.renderer.setClearColor(
-      0x000000,
-      0
-    );
-
-    scene.renderer.setClearAlpha(0);
-  }
-
-  const canvas =
-    scene.querySelector('canvas');
-
-  if (canvas) {
-
-    canvas.style.setProperty(
-      'background',
-      'transparent',
-      'important'
-    );
-  }
-
-  const track =
-    video?.srcObject?.getVideoTracks?.()[0];
-
-  diag.textContent =
-    `Video ${video?.videoWidth||0}×`+
-    `${video?.videoHeight||0}`+
-    ` · ID 5: 35 mm`+
-    ` · ID 6: 30 mm`+
-    ` · ${track?.label||'kamera'}`;
-}
-
-setInterval(diagnostics,900);
-
-setTimeout(listCameras,1500);
-
-window.addEventListener('error',e => {
-
-  status.textContent =
-    'Napaka: '+e.message;
-});
-
-window.addEventListener(
-  'unhandledrejection',
-  e => {
-
-    status.textContent =
-      'Napaka: '+String(e.reason);
-  }
-);
-
+setInterval(diagnostics,900);setTimeout(listCameras,1600);
+window.addEventListener('error',e=>{$('status').textContent='Napaka: '+e.message;});
+window.addEventListener('unhandledrejection',e=>{$('status').textContent='Napaka: '+String(e.reason);});
 diagnostics();
-
 })();
 </script>
-
 </body>
 </html>
