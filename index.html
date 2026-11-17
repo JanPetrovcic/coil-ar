@@ -1,82 +1,520 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="sl">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Coil AR v21 - osnovni test kamere in markerjev</title>
 
-  <title>Coil AR v20 — osnovni test AR.js</title>
+<script>
+// Zahtevaj podrobnejši video in ohrani možnost izbire objektiva.
+(() => {
+  const md = navigator.mediaDevices;
+  if (!md || !md.getUserMedia) return;
 
-  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+  const original = md.getUserMedia.bind(md);
+  const chosen = sessionStorage.getItem('coilCameraId');
+
+  md.getUserMedia = async constraints => {
+    if (!constraints?.video) return original(constraints);
+
+    const v = typeof constraints.video === 'object'
+      ? {...constraints.video} : {};
+
+    v.width = {ideal:1280};
+    v.height = {ideal:960};
+
+    if (chosen) {
+      delete v.facingMode;
+      v.deviceId = {exact:chosen};
+    }
+
+    try {
+      return await original({...constraints,video:v});
+    } catch(err) {
+      window.coilCameraError = err.name;
+      return original({
+        video:{
+          facingMode:{ideal:'environment'},
+          width:{ideal:1280},
+          height:{ideal:960}
+        },
+        audio:false
+      });
+    }
+  };
+})();
+</script>
+
+<script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+
+<style>
+* {
+  box-sizing:border-box;
+}
+
+html,body {
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#111;
+  font-family:Arial,sans-serif;
+}
+
+body {
+  height:100dvh;
+}
+
+video,
+video.arjs-video,
+body>video,
+#arjs-video {
+  position:fixed!important;
+  top:0!important;
+  left:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  transform:none!important;
+  object-fit:contain!important;
+  display:block!important;
+  visibility:visible!important;
+  opacity:1!important;
+  z-index:0!important;
+}
+
+html[data-fit="cover"] video,
+html[data-fit="cover"] video.arjs-video,
+html[data-fit="cover"] #arjs-video {
+  object-fit:cover!important;
+}
+
+a-scene {
+  position:fixed!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  max-width:100vw!important;
+  overflow:hidden!important;
+  background:transparent!important;
+  z-index:1!important;
+}
+
+a-scene canvas {
+  background:transparent!important;
+}
+
+.a-enter-vr,.a-enter-ar {
+  display:none!important;
+}
+
+#hud {
+  position:fixed;
+  z-index:5;
+  top:calc(8px + env(safe-area-inset-top));
+  left:8px;
+  right:8px;
+  text-align:center;
+  pointer-events:none;
+  color:#fff;
+}
+
+#status,#diag {
+  padding:7px 9px;
+  background:#0a1929d9;
+  border-radius:9px;
+  margin-bottom:5px;
+  overflow-wrap:anywhere;
+}
+
+#status {
+  font-size:13px;
+  font-weight:bold;
+}
+
+#diag {
+  font-size:11px;
+  color:#bfe5fc;
+  line-height:1.4;
+}
+
+#controls {
+  position:fixed;
+  z-index:10;
+  bottom:calc(9px + env(safe-area-inset-bottom));
+  left:8px;
+  right:8px;
+  max-width:430px;
+  margin:0 auto;
+  background:#0a1929f2;
+  color:white;
+  border:1px solid #7790a7;
+  border-radius:12px;
+  padding:10px;
+  font-size:12px;
+}
+
+#controls label {
+  display:block;
+  margin:4px 0 7px;
+}
+
+#controls select,
+#controls button {
+  width:100%;
+  background:#27435c;
+  color:white;
+  border:1px solid #7798b3;
+  border-radius:8px;
+  padding:9px;
+  font-size:13px;
+}
+
+#controls button {
+  background:#1467b9;
+  font-weight:bold;
+  touch-action:manipulation;
+}
+
+#controls p {
+  margin:8px 0 2px;
+  font-size:11px;
+  color:#d3e2ec;
+  line-height:1.4;
+}
+
+#cameraSection {
+  display:none;
+  padding-top:8px;
+}
+
+#cameraSection.open {
+  display:block;
+}
+</style>
 </head>
 
-<body style="margin:0; overflow:hidden;">
+<body>
 
-  <a-scene
-    embedded
-    vr-mode-ui="enabled:false"
-    renderer="alpha:true;antialias:true"
-    arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;">
+<div id="hud">
+  <div id="status">
+    Coil AR v21 — zaganjam kamero …
+  </div>
+  <div id="diag">
+    Video: čakam.
+  </div>
+</div>
 
-    <!-- MARKER ID 5 -->
-    <a-marker
-      type="barcode"
-      value="5"
-      emitevents="true">
+<a-scene
+  id="scene"
+  embedded
+  vr-mode-ui="enabled:false"
+  device-orientation-permission-ui="enabled:false"
+  renderer="alpha:true;antialias:true"
+  arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;sourceWidth:1280;sourceHeight:960;displayWidth:1280;displayHeight:960;canvasWidth:960;canvasHeight:720;maxDetectionRate:30;">
 
-      <!-- Cian kvadrat v ravnini markerja -->
-      <a-plane
-        position="0 0.01 0"
-        rotation="-90 0 0"
-        width="0.8"
-        height="0.8"
-        color="#00ffff"
-        material="opacity:0.4;transparent:true;side:double">
-      </a-plane>
+  <!-- ID 5 -->
+  <a-marker
+    id="m5"
+    type="barcode"
+    value="5"
+    size="0.035"
+    emitevents="true"
+    smooth="false">
 
-      <!-- Oranžna kocka -->
-      <a-box
-        position="0 0.30 0"
-        width="0.4"
-        height="0.6"
-        depth="0.4"
-        color="#ff8c00">
-      </a-box>
+    <a-plane
+      rotation="-90 0 0"
+      position="0 0.01 0"
+      width="0.8"
+      height="0.8"
+      color="#00ffff"
+      material="transparent:true;opacity:0.35;side:double">
+    </a-plane>
 
-    </a-marker>
+    <a-box
+      position="0 0.30 0"
+      width="0.4"
+      height="0.6"
+      depth="0.4"
+      color="#ff8b22">
+    </a-box>
+  </a-marker>
 
-    <!-- MARKER ID 6 -->
-    <a-marker
-      type="barcode"
-      value="6"
-      emitevents="true">
+  <!-- ID 6 -->
+  <a-marker
+    id="m6"
+    type="barcode"
+    value="6"
+    size="0.030"
+    emitevents="true"
+    smooth="false">
 
-      <!-- Rumen kvadrat v ravnini markerja -->
-      <a-plane
-        position="0 0.01 0"
-        rotation="-90 0 0"
-        width="0.8"
-        height="0.8"
-        color="#ffff00"
-        material="opacity:0.4;transparent:true;side:double">
-      </a-plane>
+    <a-plane
+      rotation="-90 0 0"
+      position="0 0.01 0"
+      width="0.8"
+      height="0.8"
+      color="#ffff66"
+      material="transparent:true;opacity:0.35;side:double">
+    </a-plane>
 
-      <!-- Modra kocka -->
-      <a-box
-        position="0 0.30 0"
-        width="0.4"
-        height="0.6"
-        depth="0.4"
-        color="#1688ff">
-      </a-box>
+    <a-box
+      position="0 0.30 0"
+      width="0.4"
+      height="0.6"
+      depth="0.4"
+      color="#2389ff">
+    </a-box>
+  </a-marker>
 
-    </a-marker>
+  <a-entity camera></a-entity>
 
-    <a-entity camera></a-entity>
+</a-scene>
 
-  </a-scene>
+<div id="controls">
+
+  <label for="fit">
+    Prikaz kamere
+  </label>
+
+  <select id="fit">
+    <option value="contain">
+      Celotna slika (brez povečave zaradi izreza)
+    </option>
+    <option value="cover">
+      Zapolni zaslon (lahko odreže robove)
+    </option>
+  </select>
+
+  <button
+    id="toggleCamera"
+    type="button"
+    style="margin-top:8px">
+    ⚙ Izbira objektiva
+  </button>
+
+  <div id="cameraSection">
+
+    <label for="cameras">
+      Kamera telefona
+    </label>
+
+    <select id="cameras">
+      <option value="">
+        Privzeta zadnja kamera
+      </option>
+    </select>
+
+    <button
+      id="useCamera"
+      type="button"
+      style="margin-top:7px">
+      Uporabi izbrano kamero ↻
+    </button>
+
+  </div>
+
+  <p>
+    ID 5: oranžna kocka · ID 6: modra kocka.
+    Če se kocki ne pojavita, pomakni telefon
+    malo stran in preveri osvetlitev.
+  </p>
+
+</div>
+
+<script>
+(() => {
+
+  const $ = id => document.getElementById(id);
+  const scene = $('scene');
+
+  const found = {
+    5:false,
+    6:false
+  };
+
+  $('m5').addEventListener('markerFound',() => {
+    found[5] = true;
+    updateStatus();
+  });
+
+  $('m5').addEventListener('markerLost',() => {
+    found[5] = false;
+    updateStatus();
+  });
+
+  $('m6').addEventListener('markerFound',() => {
+    found[6] = true;
+    updateStatus();
+  });
+
+  $('m6').addEventListener('markerLost',() => {
+    found[6] = false;
+    updateStatus();
+  });
+
+  function updateStatus() {
+    $('status').textContent =
+      `Coil AR v21 · ID 5 ${found[5]?'✓':'–'}` +
+      ` · ID 6 ${found[6]?'✓':'–'}`;
+  }
+
+  const savedFit =
+    localStorage.getItem('coilARv21Fit');
+
+  $('fit').value =
+    savedFit === 'cover' ? 'cover' : 'contain';
+
+  function setFit() {
+    document.documentElement.dataset.fit =
+      $('fit').value;
+
+    try {
+      localStorage.setItem(
+        'coilARv21Fit',
+        $('fit').value
+      );
+    } catch(e) {}
+  }
+
+  $('fit').addEventListener('change',setFit);
+
+  setFit();
+
+  $('toggleCamera').addEventListener('click',() => {
+    const open =
+      $('cameraSection').classList.toggle('open');
+
+    $('toggleCamera').textContent =
+      open
+        ? '✕ Zapri izbiro objektiva'
+        : '⚙ Izbira objektiva';
+  });
+
+  async function listCameras() {
+
+    const sel = $('cameras');
+
+    const previous =
+      sessionStorage.getItem('coilCameraId') || '';
+
+    sel.replaceChildren(
+      new Option('Privzeta zadnja kamera','')
+    );
+
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      return;
+    }
+
+    try {
+
+      const ds = (
+        await navigator.mediaDevices.enumerateDevices()
+      ).filter(
+        x => x.kind === 'videoinput'
+      );
+
+      ds.forEach((d,i) => {
+        sel.add(
+          new Option(
+            d.label || `Kamera ${i+1}`,
+            d.deviceId
+          )
+        );
+      });
+
+      if (
+        [...sel.options].some(
+          x => x.value === previous
+        )
+      ) {
+        sel.value = previous;
+      }
+
+    } catch(err) {
+      console.warn(err);
+    }
+  }
+
+  $('useCamera').addEventListener('click',() => {
+
+    const id = $('cameras').value;
+
+    if (id) {
+      sessionStorage.setItem(
+        'coilCameraId',
+        id
+      );
+    } else {
+      sessionStorage.removeItem(
+        'coilCameraId'
+      );
+    }
+
+    location.reload();
+  });
+
+  function diagnostics() {
+
+    const video = [
+      ...document.querySelectorAll('video')
+    ].find(
+      v => v.srcObject
+    ) || document.querySelector('video');
+
+    if (video) {
+      video.setAttribute('playsinline','');
+      video.muted = true;
+    }
+
+    if (scene.renderer) {
+      scene.renderer.setClearColor(0,0);
+      scene.renderer.setClearAlpha(0);
+    }
+
+    const canvas = scene.querySelector('canvas');
+
+    if (canvas) {
+      canvas.style.setProperty(
+        'background',
+        'transparent',
+        'important'
+      );
+    }
+
+    const track =
+      video?.srcObject?.getVideoTracks?.()[0];
+
+    const info =
+      `Video ${video?.videoWidth||0}×` +
+      `${video?.videoHeight||0}`;
+
+    $('diag').textContent =
+      `${info} · ${$('fit').value}` +
+      ` · ${track?.label||'kamera še ni pripravljena'}`;
+  }
+
+  window.addEventListener('resize',diagnostics);
+
+  setInterval(diagnostics,900);
+
+  setTimeout(listCameras,1400);
+
+  updateStatus();
+  diagnostics();
+
+  window.addEventListener('error',e => {
+    $('status').textContent =
+      'Napaka: '+e.message;
+  });
+
+})();
+</script>
 
 </body>
 </html>
