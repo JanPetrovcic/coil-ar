@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#10141c">
-<title>Coil AR - ID 5, XYZ, kroznica in B polje</title>
+<title>Coil AR v26 - tok in magnetne silnice nad obročem</title>
 <style>
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; }
@@ -38,6 +38,8 @@
   <main id="cameraStage" class="stage">
     <video id="cameraSource" autoplay muted playsinline></video>
     <canvas id="cameraCanvas" aria-label="Prikaz kamere z AR koordinatnim sistemom"></canvas>
+    <!-- Nadzor toka je položen ČEZ canvas; ne spreminja velikosti prikaza kamere. -->
+    <button id="reverseCurrentButton" type="button" style="position:absolute;right:9px;top:9px;z-index:3;max-width:calc(100% - 18px);background:#284459">↔ Obrni smer toka</button>
     <div id="centerMessage">Začenjam kamero …</div>
     <section class="diagnostics" id="diagnostics" role="status" aria-live="polite">
       <strong id="result">Začenjam …</strong>
@@ -71,6 +73,16 @@
   const B_ARROW_MIN_MM = 22;         // vizualna dolžina puščice na zaslonu (prek projekcije)
   const B_ARROW_MAX_MM = 55;
 
+  // NOVO v26: geometrija toka in zgornjih silnic nad polovico x <= 0.
+  // Začetni tok -1 A daje B v središču v smeri +Y (iz mize).
+  const CURRENT_SPEED_RAD_S = 0.95;
+  const FIELD_RADIAL_OFFSETS_MM = [19, 34, 52, 78];
+  const FIELD_PHI_VALUES = [0.58, 0.79, 1.0, 1.21, 1.42].map(v => v * Math.PI);
+  const FIELD_STEP_MM = 2;
+  let currentDirection = -1;
+  let movingCurrentPhi = 0.7;
+  let lastAnimationTime = null;
+
   const stage = document.getElementById('cameraStage');
   const video = document.getElementById('cameraSource');
   const canvas = document.getElementById('cameraCanvas');
@@ -83,6 +95,7 @@
   const idState = document.getElementById('idState');
   const hint = document.getElementById('hint');
   const restartButton = document.getElementById('restartButton');
+  const reverseCurrentButton = document.getElementById('reverseCurrentButton');
   const detectCanvas = document.createElement('canvas');
   const detectCtx = detectCanvas.getContext('2d', {willReadFrequently:true});
 
@@ -97,6 +110,7 @@
   // Vnaprej izračunane Biot-Savart vrednosti za prikaz na osi -Z.
   const fieldSamples = buildFieldSamples();
   const maxFieldMagnitude = Math.max(...fieldSamples.map(s => s.mag), 1e-12);
+  const fieldProfiles = buildUpperFieldProfiles();
 
   function buildFieldSamples() {
     return B_SAMPLE_Z_MM.map(distanceMm => {
@@ -147,7 +161,7 @@
     ];
   }
 
-  // Koordinatne osi za tuljavo:
+  // Koordinatne osi za tuljavo (A-Frame konvencija):
   // X je v ravnini markerja, Y pravokotno nad markerjem,
   // Z je v ravnini markerja. ARToolKit interno uporablja
   // drugo bazo: (x, y, z)_naše -> (x, -z, y)_ARToolKit.
@@ -289,7 +303,7 @@
   function drawFieldVectors(ox, oy, scale) {
     if (!markerPose || !projection) return;
 
-    // Referenčna črta po osi -Z od središča do zadnje točke.
+    // Tanka referenčna črta po osi -Z od središča do zadnje točke.
     const axisStart = project(0, 0, ORIGIN_Z_MM, ox, oy, scale);
     const axisEnd = project(0, 0, ORIGIN_Z_MM + B_SAMPLE_Z_MM[B_SAMPLE_Z_MM.length - 1], ox, oy, scale);
     if (axisStart && axisEnd) {
@@ -309,13 +323,16 @@
       if (!base) return;
 
       const visLen = B_ARROW_MIN_MM + (B_ARROW_MAX_MM - B_ARROW_MIN_MM) * (sample.mag / maxFieldMagnitude);
-      const end = project(
-        sample.dir.x * visLen,
-        sample.dir.y * visLen,
-        baseWorldZ + sample.dir.z * visLen,
-        ox, oy, scale
-      );
-      if (!end) return;
+      // Z obratom toka se obrne B, nikakor pa ne smemo risati pod Y=0.
+      // Pri B proti -Y je ZAČETEK puščice dvignjen in konica na mizi.
+      const signedY = sample.dir.y * currentDirection;
+      const vectorStart = signedY >= 0
+        ? base
+        : project(0, visLen * Math.abs(signedY), baseWorldZ, ox, oy, scale);
+      const vectorEnd = signedY >= 0
+        ? project(0, visLen * Math.abs(signedY), baseWorldZ, ox, oy, scale)
+        : base;
+      if (!vectorStart || !vectorEnd) return;
 
       ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#10141c';
@@ -325,7 +342,7 @@
       ctx.fill();
       ctx.stroke();
 
-      arrow(base, end, '#ffd34d', '', 3.5);
+      arrow(vectorStart, vectorEnd, '#ffd34d', '', 3.5);
 
       const distanceCm = Math.abs(sample.distanceMm / 10);
       const magMicroT = sample.mag * 1e6;
@@ -344,9 +361,148 @@
     });
   }
 
-  // NESPREMENJENO: contain izris in zaznava istega neobrezanega vira.
+  // Poljske črte dejanskega magnetnega polja B, numerično po Biot-Savartu.
+  // Zaradi rotacijske simetrije lahko računamo v enem radialnem preseku (rho,Y)
+  // in nato kopiramo isti profil na nekaj položajev po LEVI polovici obroča X <= 0.
+  // Integriramo samo ZGORNJO pot (Y >= 0), od zunanjosti vodnika proti notranjosti.
+  // Geometrija silnice se ob obratu toka ne spremeni, obrne se le smer puščic.
+  function upperFieldTangent(rho, y) {
+    const B = biotSavartAtPoint({x:rho, y, z:0});
+    const magnitude = Math.hypot(B.x, B.y);
+    if (!Number.isFinite(magnitude) || magnitude < 1e-20) return null;
+    return {dr:B.x / magnitude, dy:B.y / magnitude};
+  }
+
+  function buildUpperFieldProfiles() {
+    return FIELD_RADIAL_OFFSETS_MM.map(delta => {
+      let rho = COIL_RADIUS_MM + delta;
+      let y = 0;
+      const points = [{rho, y}];
+
+      // Integracija po tangenti B z metodo sredinske točke.
+      // B računamo za +1 A: na zunanji strani je smer najprej +Y.
+      for (let i = 0; i < 200; i++) {
+        const a = upperFieldTangent(rho, y);
+        if (!a) break;
+        const m = upperFieldTangent(
+          rho + 0.5 * FIELD_STEP_MM * a.dr,
+          y + 0.5 * FIELD_STEP_MM * a.dy
+        );
+        if (!m) break;
+
+        const nextRho = rho + FIELD_STEP_MM * m.dr;
+        const nextY = y + FIELD_STEP_MM * m.dy;
+
+        if (nextY < 0) {
+          // Zadnjo točko zaključimo na mizi, nikoli pod ravnino Y=0.
+          if (y > 0) {
+            const t = y / (y - nextY);
+            points.push({rho:rho + t * (nextRho - rho), y:0});
+          }
+          break;
+        }
+        if (nextRho <= 1 || nextRho > 450 || nextY > 230) break;
+
+        rho = nextRho;
+        y = nextY;
+        points.push({rho, y});
+      }
+      return points;
+    });
+  }
+
+  // Nariši majhno smerno puščico na že projicirani krivulji.
+  function lineDirectionHead(points, sign) {
+    if (points.length < 7) return;
+    const mid = Math.floor(points.length * 0.52);
+    const from = points[Math.max(0, mid - 3)];
+    const to = points[Math.min(points.length - 1, mid + 3)];
+    const dx = sign * (to.x - from.x);
+    const dy = sign * (to.y - from.y);
+    const d = Math.hypot(dx, dy);
+    if (d < 1) return;
+    const ux = dx / d, uy = dy / d;
+    const p = points[mid];
+    const size = 9;
+    ctx.beginPath();
+    ctx.moveTo(p.x + ux * size * 0.65, p.y + uy * size * 0.65);
+    ctx.lineTo(p.x - ux * size * 0.7 - uy * size * 0.45,
+               p.y - uy * size * 0.7 + ux * size * 0.45);
+    ctx.lineTo(p.x - ux * size * 0.7 + uy * size * 0.45,
+               p.y - uy * size * 0.7 - ux * size * 0.45);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // Samo x <= 0 in y >= 0; nič ne rišemo v ravnino mize ali pod njo.
+  function drawUpperHalfFieldLines(ox, oy, scale) {
+    if (!markerPose || !projection) return;
+    ctx.save();
+    ctx.strokeStyle = '#39dfff';
+    ctx.fillStyle = '#39dfff';
+    ctx.lineWidth = 2.1;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.globalAlpha = 0.85;
+
+    FIELD_PHI_VALUES.forEach(phi => {
+      const c = Math.cos(phi), s = Math.sin(phi);
+      fieldProfiles.forEach(profile => {
+        const screen = [];
+        profile.forEach(v => {
+          if (v.y < 0) return;
+          const x = v.rho * c;
+          if (x > 0) return;
+          const z = ORIGIN_Z_MM + v.rho * s;
+          const p = project(x, v.y, z, ox, oy, scale);
+          if (p) screen.push(p);
+        });
+        if (screen.length < 2) return;
+        ctx.beginPath();
+        screen.forEach((p,i) => {
+          if (i === 0) ctx.moveTo(p.x,p.y);
+          else ctx.lineTo(p.x,p.y);
+        });
+        ctx.stroke();
+        // Profil je integriran za +I. Za -I puščica kaže nazaj po krivulji.
+        lineDirectionHead(screen, currentDirection);
+      });
+    });
+    ctx.restore();
+  }
+
+  // Vijolična puščica teče po ISTEM obroču, ki ga že riše drawCircle().
+  function drawMovingCurrentArrow(ox, oy, scale) {
+    const a = movingCurrentPhi;
+    const spread = 0.16;
+    const before = a - currentDirection * spread;
+    const after  = a + currentDirection * spread;
+    const p1 = project(COIL_RADIUS_MM * Math.cos(before), 0,
+                       ORIGIN_Z_MM + COIL_RADIUS_MM * Math.sin(before), ox,oy,scale);
+    const p2 = project(COIL_RADIUS_MM * Math.cos(after), 0,
+                       ORIGIN_Z_MM + COIL_RADIUS_MM * Math.sin(after), ox,oy,scale);
+    arrow(p1, p2, '#ff4eea', 'I', 6);
+  }
+
+  function updateCurrentDirectionButton() {
+    const sign = currentDirection > 0 ? '+1 A' : '−1 A';
+    reverseCurrentButton.textContent = `↔ Obrni smer toka (I = ${sign})`;
+  }
+  reverseCurrentButton.addEventListener('click', () => {
+    currentDirection *= -1;
+    updateCurrentDirectionButton();
+  });
+  updateCurrentDirectionButton();
+
+  // NESPReMENJENO: contain izris in zaznava istega neobrezanega vira.
   function render(timestamp) {
     frameId=requestAnimationFrame(render);
+    // Samo časovni korak za potujočo puščico. Ni posegov v video ali tracker.
+    if (lastAnimationTime !== null) {
+      const dt = Math.min(0.08, Math.max(0, (timestamp - lastAnimationTime) / 1000));
+      movingCurrentPhi = (movingCurrentPhi + currentDirection * CURRENT_SPEED_RAD_S * dt + Math.PI * 2) % (Math.PI * 2);
+    }
+    lastAnimationTime = timestamp;
     ctx.fillStyle='#000'; ctx.fillRect(0,0,width,height);
     if(!cameraReady||video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA||!width||!height) return;
     const vw=video.videoWidth, vh=video.videoHeight;
@@ -384,8 +540,10 @@
     if(currentIds.includes(MARKER_ID)) {
       currentMarkers.filter(m=>m.idMatrix===MARKER_ID).forEach(m=>drawMarkerOutline(m,ox,oy,markerScale));
       drawCircle(ox,oy,markerScale);
+      drawUpperHalfFieldLines(ox,oy,markerScale);
       drawFieldVectors(ox,oy,markerScale);
       drawAxes(ox,oy,markerScale);
+      drawMovingCurrentArrow(ox,oy,markerScale);
     }
 
     if(!detectorError && timestamp-lastUIAt>150) {
@@ -396,7 +554,7 @@
       resultEl.textContent=!detectorReady
         ? 'Čakam detektor …'
         : found
-          ? '✓ ID 5 zaznan · obroč R = 15 cm · Biot-Savart B na osi −Z'
+          ? '✓ ID 5 · R = 15 cm · Biot-Savart · I = ' + (currentDirection * CURRENT_A) + ' A'
           : 'Marker ID 5 trenutno ni zaznan';
       idState.textContent='Videni ID-ji: '+(currentIds.length?[...new Set(currentIds)].join(', '):'nobenega');
       detectorState.textContent=detectorReady
@@ -404,7 +562,7 @@
         : 'Detektor: inicializacija …';
       centerMessage.hidden=true;
       hint.textContent=found
-        ? 'Rumene puščice so B vektorji za I = 1 A pri 0, 3, 6, 9 in 12 cm po osi −Z.'
+        ? 'Polje nad mizo (Y ≥ 0), na polovici X ≤ 0. Rumene puščice: B pri 0, 3, 6, 9, 12 cm.'
         : 'Pokaži celoten marker ID 5 v dobro osvetljeni kameri.';
     }
   }
@@ -485,7 +643,7 @@
     centerMessage.textContent='Zaganjam kamero …';
     try {
       if(!navigator.mediaDevices?.getUserMedia) throw new Error('Kamera je dovoljena samo na HTTPS ali localhost.');
-      // NESPREMENJENO IZ TVOJE DELOUJOČE OSNOVE:
+      // NESPReMENJENO IZ TVOJE DELOUJOČE OSNOVE:
       stream=await navigator.mediaDevices.getUserMedia({
         audio:false,
         video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480}}
