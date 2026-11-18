@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#10141c">
-<title>Coil AR - ID 5, XYZ -7.5 cm</title>
+<title>Coil AR - ID 5, XYZ in kroznica R=15 cm</title>
 <style>
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; }
@@ -32,8 +32,8 @@
 <body>
 <div id="app">
   <header>
-    <h1>Coil AR – koordinatni sistem XYZ</h1>
-    <p>ID 5 · izhodišče Z = −8 cm · X rdeča, Y zelena, Z modra</p>
+    <h1>Coil AR – XYZ in krožnica</h1>
+    <p>ID 5 · izhodišče Z = −8 cm · krožnica R = 15 cm v ravnini XZ</p>
   </header>
   <main id="cameraStage" class="stage">
     <video id="cameraSource" autoplay muted playsinline></video>
@@ -58,8 +58,10 @@
   // getTransMatSquare spodaj dobi fizično širino 35 mm.
   const MARKER_ID = 5;
   const MARKER_WIDTH_MM = 35;
-  const ORIGIN_Z_MM = -75;  // natanko -7.5 cm po naši osi Z
+  const ORIGIN_Z_MM = -80;  // natanko -8 cm po naši osi Z
   const AXIS_LENGTH_MM = 50;
+  const COIL_RADIUS_MM = 150; // 15 cm: krožnica okoli premaknjenega izhodišča
+  const CIRCLE_SEGMENTS = 180;
 
   const stage = document.getElementById('cameraStage');
   const video = document.getElementById('cameraSource');
@@ -174,6 +176,35 @@
     ctx.fill(); ctx.stroke();
   }
 
+  // Krožnica v ravnini XZ, z Y = 0. Središče je isto kot za XYZ osi.
+  // Vse koordinate so v milimetrih v sistemu markerja ID 5.
+  function drawCircle(ox,oy,scale) {
+    if (!markerPose || !projection) return;
+    ctx.strokeStyle = '#ff9b21';
+    ctx.lineWidth = 4;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    let drawing = false;
+    for (let i = 0; i <= CIRCLE_SEGMENTS; i++) {
+      const angle = 2 * Math.PI * i / CIRCLE_SEGMENTS;
+      const x = COIL_RADIUS_MM * Math.cos(angle);
+      const z = ORIGIN_Z_MM + COIL_RADIUS_MM * Math.sin(angle);
+      const p = project(x, 0, z, ox, oy, scale);
+      if (!p) {
+        drawing = false;
+        continue;
+      }
+      if (!drawing) {
+        ctx.moveTo(p.x,p.y);
+        drawing = true;
+      } else {
+        ctx.lineTo(p.x,p.y);
+      }
+    }
+    ctx.stroke();
+  }
+
   function drawMarkerOutline(marker,ox,oy,scale) {
     const corners=marker.vertex;
     if(!Array.isArray(corners)||corners.length<4) return;
@@ -230,6 +261,7 @@
     const markerScale=viewWidth/detectCanvas.width;
     if(currentIds.includes(MARKER_ID)) {
       currentMarkers.filter(m=>m.idMatrix===MARKER_ID).forEach(m=>drawMarkerOutline(m,ox,oy,markerScale));
+      drawCircle(ox,oy,markerScale);
       drawAxes(ox,oy,markerScale);
     }
 
@@ -238,7 +270,7 @@
       const found=currentIds.includes(MARKER_ID);
       diagnostics.classList.toggle('good',found);
       diagnostics.classList.remove('error');
-      resultEl.textContent=!detectorReady?'Čakam detektor …':found?'✓ ID 5 zaznan · XYZ: Z = −8 cm':'Marker ID 5 trenutno ni zaznan';
+      resultEl.textContent=!detectorReady?'Čakam detektor …':found?'✓ ID 5 zaznan · XYZ −8 cm · R = 15 cm':'Marker ID 5 trenutno ni zaznan';
       idState.textContent='Videni ID-ji: '+(currentIds.length?[...new Set(currentIds)].join(', '):'nobenega');
       detectorState.textContent=detectorReady?'Detektor: pripravljen, obdelanih slik: '+processedFrames:'Detektor: inicializacija …';
       centerMessage.hidden=true;
