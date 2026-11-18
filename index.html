@@ -1,693 +1,370 @@
-
 <!doctype html>
 <html lang="sl">
 <head>
 <meta charset="utf-8">
-<meta name="viewport"
-      content="width=device-width,initial-scale=1,viewport-fit=cover">
-
-<title>Coil AR v23 - delujoca kamera + XYZ odmik</title>
-
-<!--
-  KAMERA IN SLEDENJE OSTAJATA KOT V v21.
-  Spremenjen je samo prikaz koordinatnega sistema ID 5.
--->
-
-<script>
-(() => {
-  const md = navigator.mediaDevices;
-
-  if (!md || !md.getUserMedia) return;
-
-  const original = md.getUserMedia.bind(md);
-  const chosen = sessionStorage.getItem('coilCameraId');
-
-  md.getUserMedia = async constraints => {
-    if (!constraints?.video) {
-      return original(constraints);
-    }
-
-    const v = typeof constraints.video === 'object'
-      ? {...constraints.video}
-      : {};
-
-    v.width = {ideal:1280};
-    v.height = {ideal:960};
-
-    if (chosen) {
-      delete v.facingMode;
-      v.deviceId = {exact:chosen};
-    }
-
-    try {
-      return await original({
-        ...constraints,
-        video:v
-      });
-    } catch(err) {
-      window.coilCameraError = err.name;
-
-      return original({
-        video:{
-          facingMode:{ideal:'environment'},
-          width:{ideal:1280},
-          height:{ideal:960}
-        },
-        audio:false
-      });
-    }
-  };
-})();
-</script>
-
-<script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
-
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#10141c">
+<title>Coil AR - ID 5, XYZ -8 cm</title>
 <style>
-* {
-  box-sizing:border-box;
-}
-
-html,body {
-  margin:0;
-  padding:0;
-  width:100%;
-  height:100%;
-  overflow:hidden;
-  background:#111;
-  font-family:Arial,sans-serif;
-}
-
-body {
-  height:100dvh;
-}
-
-/*
-  POVSEM ENAK PRIKAZ KAMERE KOT v21.
-  Privzeto object-fit:contain.
-*/
-
-video,
-video.arjs-video,
-body>video,
-#arjs-video {
-  position:fixed!important;
-  top:0!important;
-  left:0!important;
-  width:100vw!important;
-  height:100dvh!important;
-  max-width:none!important;
-  max-height:none!important;
-  margin:0!important;
-  transform:none!important;
-  object-fit:contain!important;
-  display:block!important;
-  visibility:visible!important;
-  opacity:1!important;
-  z-index:0!important;
-}
-
-html[data-fit="cover"] video,
-html[data-fit="cover"] video.arjs-video,
-html[data-fit="cover"] #arjs-video {
-  object-fit:cover!important;
-}
-
-a-scene {
-  position:fixed!important;
-  inset:0!important;
-  width:100vw!important;
-  height:100dvh!important;
-  max-width:100vw!important;
-  overflow:hidden!important;
-  background:transparent!important;
-  z-index:1!important;
-}
-
-a-scene canvas {
-  background:transparent!important;
-}
-
-.a-enter-vr,
-.a-enter-ar {
-  display:none!important;
-}
-
-#hud {
-  position:fixed;
-  z-index:5;
-  top:calc(8px + env(safe-area-inset-top));
-  left:8px;
-  right:8px;
-  text-align:center;
-  pointer-events:none;
-  color:#fff;
-}
-
-#status,#diag {
-  padding:7px 9px;
-  background:#0a1929d9;
-  border-radius:9px;
-  margin-bottom:5px;
-  overflow-wrap:anywhere;
-}
-
-#status {
-  font-size:13px;
-  font-weight:bold;
-}
-
-#diag {
-  font-size:11px;
-  color:#bfe5fc;
-  line-height:1.4;
-}
-
-#controls {
-  position:fixed;
-  z-index:10;
-  bottom:calc(9px + env(safe-area-inset-bottom));
-  left:8px;
-  right:8px;
-  max-width:430px;
-  margin:0 auto;
-  background:#0a1929f2;
-  color:white;
-  border:1px solid #7790a7;
-  border-radius:12px;
-  padding:10px;
-  font-size:12px;
-}
-
-#controls label {
-  display:block;
-  margin:4px 0 7px;
-}
-
-#controls select,
-#controls button {
-  width:100%;
-  background:#27435c;
-  color:white;
-  border:1px solid #7798b3;
-  border-radius:8px;
-  padding:9px;
-  font-size:13px;
-}
-
-#controls button {
-  background:#1467b9;
-  font-weight:bold;
-  touch-action:manipulation;
-}
-
-#controls p {
-  margin:8px 0 2px;
-  font-size:11px;
-  color:#d3e2ec;
-  line-height:1.4;
-}
-
-#cameraSection {
-  display:none;
-  padding-top:8px;
-}
-
-#cameraSection.open {
-  display:block;
-}
+  * { box-sizing:border-box; }
+  html, body { margin:0; height:100%; }
+  body { font:15px/1.35 system-ui,-apple-system,sans-serif; color:#fff; background:#10141c; }
+  #app { display:flex; flex-direction:column; height:100%; min-height:0; }
+  header { flex:none; padding:10px 14px; background:#1b2431; border-bottom:1px solid #344052; }
+  header h1 { margin:0 0 4px; font-size:17px; }
+  header p { margin:0; font-size:13px; color:#bfcde0; }
+  .stage { position:relative; flex:1; min-height:0; overflow:hidden; background:#000; }
+  .stage > canvas { display:block; width:100%; height:100%; }
+  .stage > video { display:none; }
+  #centerMessage { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); padding:10px 17px; background:rgba(3,14,22,.82); border:1px solid #7190a8; border-radius:10px; font-weight:700; text-align:center; pointer-events:none; }
+  #centerMessage.found { background:#075b32; border-color:#8ef0b8; }
+  #centerMessage[hidden] { display:none; }
+  .diagnostics { position:absolute; left:12px; right:12px; bottom:12px; padding:10px 12px; background:rgba(12,18,26,.86); border:1px solid #4a5a72; border-radius:11px; display:grid; gap:4px; font-size:12px; overflow-wrap:anywhere; }
+  .diagnostics strong { font-size:15px; }
+  .diagnostics.good { border-color:#48ce88; }
+  .diagnostics.error { border-color:#e58c8c; }
+  .dim { color:#b6c7d9; }
+  footer { flex:none; background:#1b2431; padding:9px 12px; display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  button, a.action { border:1px solid #91b5d0; color:#fff; background:#284459; padding:9px 12px; border-radius:8px; text-decoration:none; font:inherit; cursor:pointer; }
+  footer small { color:#bfcde0; }
 </style>
 </head>
-
 <body>
-
-<div id="hud">
-
-  <div id="status">
-    Coil AR v23 — iščem marker ID 5 ...
-  </div>
-
-  <div id="diag">
-    Video: čakam.
-  </div>
-
+<div id="app">
+  <header>
+    <h1>Coil AR – koordinatni sistem XYZ</h1>
+    <p>ID 5 · izhodišče Z = −8 cm · X rdeča, Y zelena, Z modra</p>
+  </header>
+  <main id="cameraStage" class="stage">
+    <video id="cameraSource" autoplay muted playsinline></video>
+    <canvas id="cameraCanvas" aria-label="Prikaz kamere z AR koordinatnim sistemom"></canvas>
+    <div id="centerMessage">Začenjam kamero …</div>
+    <section class="diagnostics" id="diagnostics" role="status" aria-live="polite">
+      <strong id="result">Začenjam …</strong>
+      <div id="cameraState">Kamera: čakam</div>
+      <div id="detectorState">Detektor: čakam</div>
+      <div id="idState">Videni ID-ji: —</div>
+      <div class="dim" id="hint">Pokaži marker ID 5 pred kamero.</div>
+    </section>
+  </main>
+  <footer>
+    <button id="restartButton" type="button">Ponovno zaženi kamero</button>
+    <small>Enak zajem in prikaz kamere kot v delujočem canvas testu.</small>
+  </footer>
 </div>
-
-<!--
-  AR.js NASTAVITVE SO IDENTIČNE v21.
-  NE SPREMINJAJ!
--->
-
-<a-scene
-  id="scene"
-  embedded
-  vr-mode-ui="enabled:false"
-  device-orientation-permission-ui="enabled:false"
-  renderer="alpha:true;antialias:true"
-  arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;sourceWidth:1280;sourceHeight:960;displayWidth:1280;displayHeight:960;canvasWidth:960;canvasHeight:720;maxDetectionRate:30;">
-
-  <!-- ===================================== -->
-  <!-- MARKER ID 5                           -->
-  <!-- ===================================== -->
-
-  <a-marker
-    id="m5"
-    type="barcode"
-    value="5"
-    size="0.035"
-    emitevents="true"
-    smooth="false">
-
-    <!--
-      REFERENČNI CIAN KVADRAT
-      Ostane neposredno na markerju,
-      da lahko preveriš sledenje.
-    -->
-
-    <a-plane
-      rotation="-90 0 0"
-      position="0 0.01 0"
-      width="0.8"
-      height="0.8"
-      color="#00ffff"
-      material="transparent:true;opacity:0.25;side:double">
-    </a-plane>
-
-    <!-- ================================= -->
-    <!-- NOVO: PREMIKNJENO IZHODIŠČE XYZ   -->
-    <!-- ================================= -->
-
-    <!--
-      MARKER: 35 mm = 3,5 cm
-
-      ŽELENI ODMIK:
-      Z = -8 cm
-
-      PRETVORBA:
-      -8 / 3,5 = -2,285714
-
-      Premaknemo cel XYZ sistem,
-      ne kamere in ne markerja.
-    -->
-
-    <a-entity
-      id="xyz-origin"
-      position="0 0 -2.285714">
-
-      <!-- BELO IZHODIŠČE -->
-
-      <a-sphere
-        position="0 0 0"
-        radius="0.055"
-        color="#ffffff"
-        material="shader:flat">
-      </a-sphere>
-
-      <!-- ========================== -->
-      <!-- X - RDEČA                  -->
-      <!-- ========================== -->
-
-      <a-cylinder
-        position="0.50 0 0"
-        rotation="0 0 -90"
-        radius="0.015"
-        height="1.0"
-        color="#ff3030"
-        material="shader:flat">
-      </a-cylinder>
-
-      <a-cone
-        position="1.08 0 0"
-        rotation="0 0 -90"
-        radius-bottom="0.07"
-        radius-top="0"
-        height="0.18"
-        color="#ff3030"
-        material="shader:flat">
-      </a-cone>
-
-      <!-- ========================== -->
-      <!-- Y - ZELENA                 -->
-      <!-- ========================== -->
-
-      <a-cylinder
-        position="0 0.50 0"
-        radius="0.015"
-        height="1.0"
-        color="#25ff55"
-        material="shader:flat">
-      </a-cylinder>
-
-      <a-cone
-        position="0 1.08 0"
-        radius-bottom="0.07"
-        radius-top="0"
-        height="0.18"
-        color="#25ff55"
-        material="shader:flat">
-      </a-cone>
-
-      <!-- ========================== -->
-      <!-- Z - MODRA                  -->
-      <!-- ========================== -->
-
-      <a-cylinder
-        position="0 0 0.50"
-        rotation="90 0 0"
-        radius="0.015"
-        height="1.0"
-        color="#248bff"
-        material="shader:flat">
-      </a-cylinder>
-
-      <a-cone
-        position="0 0 1.08"
-        rotation="90 0 0"
-        radius-bottom="0.07"
-        radius-top="0"
-        height="0.18"
-        color="#248bff"
-        material="shader:flat">
-      </a-cone>
-
-    </a-entity>
-
-  </a-marker>
-
-  <!-- ===================================== -->
-  <!-- MARKER ID 6                           -->
-  <!-- Ohranjena kontrolna kocka iz v21.      -->
-  <!-- ===================================== -->
-
-  <a-marker
-    id="m6"
-    type="barcode"
-    value="6"
-    size="0.030"
-    emitevents="true"
-    smooth="false">
-
-    <a-plane
-      rotation="-90 0 0"
-      position="0 0.01 0"
-      width="0.8"
-      height="0.8"
-      color="#ffff66"
-      material="transparent:true;opacity:0.35;side:double">
-    </a-plane>
-
-    <a-box
-      position="0 0.30 0"
-      width="0.4"
-      height="0.6"
-      depth="0.4"
-      color="#2389ff">
-    </a-box>
-
-  </a-marker>
-
-  <!-- KAMERA - NESPREMENJENO -->
-
-  <a-entity camera></a-entity>
-
-</a-scene>
-
-<!-- NASTAVITVE KAMERE - KOT v21 -->
-
-<div id="controls">
-
-  <label for="fit">
-    Prikaz kamere
-  </label>
-
-  <select id="fit">
-
-    <option value="contain">
-      Celotna slika (brez povečave zaradi izreza)
-    </option>
-
-    <option value="cover">
-      Zapolni zaslon (lahko odreže robove)
-    </option>
-
-  </select>
-
-  <button
-    id="toggleCamera"
-    type="button"
-    style="margin-top:8px">
-    ⚙ Izbira objektiva
-  </button>
-
-  <div id="cameraSection">
-
-    <label for="cameras">
-      Kamera telefona
-    </label>
-
-    <select id="cameras">
-      <option value="">
-        Privzeta zadnja kamera
-      </option>
-    </select>
-
-    <button
-      id="useCamera"
-      type="button"
-      style="margin-top:7px">
-      Uporabi izbrano kamero ↻
-    </button>
-
-  </div>
-
-  <p>
-    ID 5: XYZ premaknjen za Z = −8 cm.
-    ID 6: modra kontrolna kocka.
-  </p>
-
-</div>
-
 <script>
 (() => {
+  // FIZIČNO MERILO. Enota poze ARToolKit je mm, ker
+  // getTransMatSquare spodaj dobi fizično širino 35 mm.
+  const MARKER_ID = 5;
+  const MARKER_WIDTH_MM = 35;
+  const ORIGIN_Z_MM = -80;  // natanko -8 cm po naši osi Z
+  const AXIS_LENGTH_MM = 50;
 
-  const $ = id => document.getElementById(id);
-  const scene = $('scene');
+  const stage = document.getElementById('cameraStage');
+  const video = document.getElementById('cameraSource');
+  const canvas = document.getElementById('cameraCanvas');
+  const ctx = canvas.getContext('2d');
+  const centerMessage = document.getElementById('centerMessage');
+  const diagnostics = document.getElementById('diagnostics');
+  const resultEl = document.getElementById('result');
+  const cameraState = document.getElementById('cameraState');
+  const detectorState = document.getElementById('detectorState');
+  const idState = document.getElementById('idState');
+  const hint = document.getElementById('hint');
+  const restartButton = document.getElementById('restartButton');
+  const detectCanvas = document.createElement('canvas');
+  const detectCtx = detectCanvas.getContext('2d', {willReadFrequently:true});
 
-  const found = {
-    5:false,
-    6:false
-  };
+  let stream=null, controller=null, cameraParam=null, frameId=0;
+  let width=0, height=0, currentIds=[], currentMarkers=[];
+  let lastDetectionAt=0, processedFrames=0, cameraReady=false;
+  let detectorReady=false, detectorError=false, runId=0, lastUIAt=0;
+  let markerPose=null, projection=null;
+  const mat12 = new Float32Array(12);
+  const mat16 = new Float32Array(16);
 
-  $('m5').addEventListener(
-    'markerFound',
-    () => {
-      found[5] = true;
-      updateStatus();
-    }
-  );
+  // NESPReMENJENO: enak canvas, DPR in dimenzioniranje kot v osnovnem testu.
+  function updateDimensions() {
+    const rect=stage.getBoundingClientRect();
+    width=rect.width; height=rect.height;
+    const dpr=Math.min(window.devicePixelRatio||1,2);
+    const pixelWidth=Math.max(1,Math.round(width*dpr));
+    const pixelHeight=Math.max(1,Math.round(height*dpr));
+    if(canvas.width!==pixelWidth) canvas.width=pixelWidth;
+    if(canvas.height!==pixelHeight) canvas.height=pixelHeight;
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  const resizeObserver=new ResizeObserver(updateDimensions);
+  resizeObserver.observe(stage);
+  updateDimensions();
 
-  $('m5').addEventListener(
-    'markerLost',
-    () => {
-      found[5] = false;
-      updateStatus();
-    }
-  );
-
-  $('m6').addEventListener(
-    'markerFound',
-    () => {
-      found[6] = true;
-      updateStatus();
-    }
-  );
-
-  $('m6').addEventListener(
-    'markerLost',
-    () => {
-      found[6] = false;
-      updateStatus();
-    }
-  );
-
-  function updateStatus() {
-
-    $('status').textContent =
-      `Coil AR v23 · ID 5 ${found[5]?'✓':'–'}` +
-      ` · ID 6 ${found[6]?'✓':'–'}` +
-      ` · Z = −8 cm`;
+  function showError(message) {
+    detectorError=true;
+    diagnostics.classList.remove('good');
+    diagnostics.classList.add('error');
+    resultEl.textContent='Napaka pri testu';
+    hint.textContent=message;
+    centerMessage.textContent='Napaka pri testu';
+    centerMessage.hidden=false;
+    centerMessage.classList.remove('found');
+    console.error(message);
   }
 
-  // OHRANIMO IZBIRO PRIKAZA IZ v21.
-
-  const savedFit =
-    localStorage.getItem('coilARv21Fit');
-
-  $('fit').value =
-    savedFit === 'cover' ? 'cover' : 'contain';
-
-  function setFit() {
-
-    document.documentElement.dataset.fit =
-      $('fit').value;
-
-    try {
-      localStorage.setItem(
-        'coilARv21Fit',
-        $('fit').value
-      );
-    } catch(e) {}
+  // Množenje 4x4 matrike (column-major), brez WebGL ali nove kamere.
+  function mul4(m, v) {
+    return [
+      m[0]*v[0]+m[4]*v[1]+m[8]*v[2]+m[12]*v[3],
+      m[1]*v[0]+m[5]*v[1]+m[9]*v[2]+m[13]*v[3],
+      m[2]*v[0]+m[6]*v[1]+m[10]*v[2]+m[14]*v[3],
+      m[3]*v[0]+m[7]*v[1]+m[11]*v[2]+m[15]*v[3]
+    ];
   }
 
-  $('fit').addEventListener(
-    'change',
-    setFit
-  );
+  // Koordinatne osi za tuljavo (A-Frame konvencija):
+  // X je v ravnini markerja, Y pravokotno nad markerjem,
+  // Z je v ravnini markerja. ARToolKit interno uporablja
+  // drugo bazo: (x, y, z)_naše -> (x, -z, y)_ARToolKit.
+  function toMarker(x,y,z) { return [x,-z,y,1]; }
 
-  setFit();
+  function project(x,y,z,ox,oy,scale) {
+    if (!markerPose || !projection) return null;
+    const cameraPoint=mul4(markerPose,toMarker(x,y,z));
+    const clip=mul4(projection,cameraPoint);
+    if(!Number.isFinite(clip[3]) || Math.abs(clip[3])<1e-7) return null;
+    const nx=clip[0]/clip[3], ny=clip[1]/clip[3];
+    if(!Number.isFinite(nx)||!Number.isFinite(ny)) return null;
+    // Matrika uporablja dimenzije detekcijskega canvasa.
+    const px=(nx+1)*0.5*detectCanvas.width;
+    const py=(1-ny)*0.5*detectCanvas.height;
+    return {x:ox+px*scale,y:oy+py*scale};
+  }
 
-  // OHRANIMO IZBIRO OBJEKTIVA IZ v21.
+  function arrow(start,end,color,label) {
+    if(!start || !end) return;
+    const dx=end.x-start.x,dy=end.y-start.y;
+    const distance=Math.hypot(dx,dy);
+    if(distance<1) return;
+    const ux=dx/distance,uy=dy/distance;
+    const head=Math.min(15,Math.max(7,distance*.18));
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=4;
+    ctx.lineCap='round'; ctx.lineJoin='round';
+    ctx.beginPath(); ctx.moveTo(start.x,start.y); ctx.lineTo(end.x,end.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(end.x,end.y);
+    ctx.lineTo(end.x-ux*head-uy*head*.5,end.y-uy*head+ux*head*.5);
+    ctx.lineTo(end.x-ux*head+uy*head*.5,end.y-uy*head-ux*head*.5);
+    ctx.closePath(); ctx.fill();
+    ctx.font='bold 19px system-ui'; ctx.lineWidth=3;
+    ctx.strokeStyle='#10141c'; ctx.strokeText(label,end.x+7,end.y-7);
+    ctx.fillText(label,end.x+7,end.y-7);
+  }
 
-  $('toggleCamera').addEventListener(
-    'click',
-    () => {
+  function drawAxes(ox,oy,scale) {
+    const z=ORIGIN_Z_MM, len=AXIS_LENGTH_MM;
+    const origin=project(0,0,z,ox,oy,scale);
+    if(!origin) return;
+    const xp=project(len,0,z,ox,oy,scale);
+    const yp=project(0,len,z,ox,oy,scale);
+    const zp=project(0,0,z+len,ox,oy,scale);
+    arrow(origin,xp,'#ff4242','X');
+    arrow(origin,yp,'#42ff79','Y');
+    arrow(origin,zp,'#4094ff','Z');
+    ctx.fillStyle='#fff'; ctx.strokeStyle='#111'; ctx.lineWidth=3;
+    ctx.beginPath(); ctx.arc(origin.x,origin.y,5,0,Math.PI*2);
+    ctx.fill(); ctx.stroke();
+  }
 
-      const open =
-        $('cameraSection').classList.toggle('open');
+  function drawMarkerOutline(marker,ox,oy,scale) {
+    const corners=marker.vertex;
+    if(!Array.isArray(corners)||corners.length<4) return;
+    const pts=corners.slice(0,4).map(p=>({
+      x:Number(Array.isArray(p)?p[0]:p.x),
+      y:Number(Array.isArray(p)?p[1]:p.y)
+    }));
+    if(pts.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y))) return;
+    ctx.beginPath();
+    pts.forEach((p,i)=>i?ctx.lineTo(ox+p.x*scale,oy+p.y*scale):ctx.moveTo(ox+p.x*scale,oy+p.y*scale));
+    ctx.closePath(); ctx.lineWidth=3; ctx.strokeStyle='#32fa80'; ctx.stroke();
+    ctx.font='bold 18px system-ui'; ctx.fillStyle='#32fa80';
+    ctx.fillText('ID 5',ox+pts[0].x*scale,Math.max(24,oy+pts[0].y*scale-10));
+  }
 
-      $('toggleCamera').textContent =
-        open
-          ? '✕ Zapri izbiro objektiva'
-          : '⚙ Izbira objektiva';
+  // NESPReMENJENO: contain izris in zaznava istega neobrezanega vira.
+  function render(timestamp) {
+    frameId=requestAnimationFrame(render);
+    ctx.fillStyle='#000'; ctx.fillRect(0,0,width,height);
+    if(!cameraReady||video.readyState<HTMLMediaElement.HAVE_CURRENT_DATA||!width||!height) return;
+    const vw=video.videoWidth, vh=video.videoHeight;
+    const displayScale=Math.min(width/vw,height/vh);
+    const viewWidth=vw*displayScale, viewHeight=vh*displayScale;
+    const ox=(width-viewWidth)/2, oy=(height-viewHeight)/2;
+    ctx.drawImage(video,ox,oy,viewWidth,viewHeight);
+
+    if(detectorReady && timestamp-lastDetectionAt>=110) {
+      lastDetectionAt=timestamp;
+      try {
+        detectCtx.drawImage(video,0,0,detectCanvas.width,detectCanvas.height);
+        currentIds=[]; currentMarkers=[];
+        markerPose=null;
+        controller.process(detectCanvas);
+        processedFrames++;
+
+        // DODANO: iz iste detekcije izračun poze z merilom v mm.
+        // NE spremeni kamere ali velikosti detekcijskega canvasa.
+        const count=controller.getMarkerNum();
+        for(let i=0;i<count;i++) {
+          const marker=controller.getMarker(i);
+          if(marker?.idMatrix!==MARKER_ID) continue;
+          controller.getTransMatSquare(i,MARKER_WIDTH_MM,mat12);
+          controller.transMatToGLMat(mat12,mat16);
+          markerPose=new Float32Array(mat16);
+          break;
+        }
+      } catch(err) {
+        detectorReady=false;
+        detectorState.textContent='Detektor: napaka med obdelavo';
+        showError('Zaznavanje ni uspelo: '+err.message);
+      }
     }
-  );
 
-  async function listCameras() {
-
-    const sel = $('cameras');
-
-    const previous =
-      sessionStorage.getItem('coilCameraId') || '';
-
-    sel.replaceChildren(
-      new Option('Privzeta zadnja kamera','')
-    );
-
-    if (!navigator.mediaDevices?.enumerateDevices) {
-      return;
+    const markerScale=viewWidth/detectCanvas.width;
+    if(currentIds.includes(MARKER_ID)) {
+      currentMarkers.filter(m=>m.idMatrix===MARKER_ID).forEach(m=>drawMarkerOutline(m,ox,oy,markerScale));
+      drawAxes(ox,oy,markerScale);
     }
 
-    try {
+    if(!detectorError && timestamp-lastUIAt>150) {
+      lastUIAt=timestamp;
+      const found=currentIds.includes(MARKER_ID);
+      diagnostics.classList.toggle('good',found);
+      diagnostics.classList.remove('error');
+      resultEl.textContent=!detectorReady?'Čakam detektor …':found?'✓ ID 5 zaznan · XYZ: Z = −8 cm':'Marker ID 5 trenutno ni zaznan';
+      idState.textContent='Videni ID-ji: '+(currentIds.length?[...new Set(currentIds)].join(', '):'nobenega');
+      detectorState.textContent=detectorReady?'Detektor: pripravljen, obdelanih slik: '+processedFrames:'Detektor: inicializacija …';
+      centerMessage.hidden=true;
+      hint.textContent=found?'Zeleni obris je na markerju; beležimo fizični odmik 80 mm.':'Pokaži celoten marker ID 5 v dobro osvetljeni kameri.';
+    }
+  }
 
-      const ds = (
-        await navigator.mediaDevices.enumerateDevices()
-      ).filter(
-        x => x.kind === 'videoinput'
+  function loadARToolkit() {
+    return new Promise((resolve,reject)=>{
+      if(window.ARController && window.artoolkit && typeof window.artoolkit.setup==='function') return resolve();
+      let done=false;
+      const timeout=setTimeout(()=>finish(new Error('Knjižnica ARToolKit se ni inicializirala.')),20000);
+      function finish(err) {
+        if(done) return;
+        done=true; clearTimeout(timeout);
+        window.removeEventListener('artoolkit-loaded',onReady);
+        if(err) reject(err); else resolve();
+      }
+      function onReady(){finish();}
+      window.addEventListener('artoolkit-loaded',onReady);
+      const script=document.createElement('script');
+      script.src='https://www.artoolkitx.org/jsartoolkit5/build/artoolkit.min.js';
+      script.async=true;
+      script.onerror=()=>finish(new Error('Knjižnice ARToolKit ni mogoče prenesti.'));
+      script.onload=()=>{if(window.ARController&&window.artoolkit&&typeof window.artoolkit.setup==='function')finish();};
+      document.head.appendChild(script);
+    });
+  }
+
+  function loadCameraParameters() {
+    return new Promise((resolve,reject)=>{
+      cameraParam=new ARCameraParam(
+        'https://www.artoolkitx.org/jsartoolkit5/examples/Data/camera_para.dat',
+        ()=>resolve(cameraParam),
+        error=>reject(new Error('Kalibracije ni mogoče naložiti: '+error))
       );
+    });
+  }
 
-      ds.forEach((d,i) => {
+  function createDetector(param) {
+    return new Promise((resolve,reject)=>{
+      try {
+        controller=new ARController(detectCanvas,param);
+        controller.onload=()=>{
+          try {
+            controller.setPatternDetectionMode(artoolkit.AR_MATRIX_CODE_DETECTION);
+            controller.setMatrixCodeType(artoolkit.AR_MATRIX_CODE_3x3);
+            controller.addEventListener('getMarker',event=>{
+              const marker=event?.data?.marker;
+              if(!marker) return;
+              if(Number.isInteger(marker.idMatrix)&&marker.idMatrix>=0) {
+                currentIds.push(marker.idMatrix);
+                currentMarkers.push(marker);
+              }
+            });
+            projection=new Float32Array(controller.getCameraMatrix());
+            detectorReady=true;
+            resolve();
+          } catch(e) {reject(e);}
+        };
+      } catch(e) {reject(e);}
+    });
+  }
 
-        sel.add(
-          new Option(
-            d.label || `Kamera ${i+1}`,
-            d.deviceId
-          )
-        );
+  async function restart() {
+    const myRun=++runId;
+    cancelAnimationFrame(frameId);
+    if(stream) stream.getTracks().forEach(track=>track.stop());
+    stream=null; cameraReady=false; detectorReady=false; detectorError=false;
+    if(controller) {try{controller.dispose();}catch(_){} controller=null;}
+    if(cameraParam) {try{cameraParam.dispose();}catch(_){} cameraParam=null;}
+    projection=null; markerPose=null;
+    currentIds=[]; currentMarkers=[]; processedFrames=0; lastDetectionAt=0; lastUIAt=0;
+    diagnostics.classList.remove('error','good');
+    resultEl.textContent='Zaganjam kamero …';
+    detectorState.textContent='Detektor: čakam';
+    cameraState.textContent='Kamera: čakam';
+    idState.textContent='Videni ID-ji: —';
+    hint.textContent='Za test uporabi ARToolKit barcode 3×3, ID 5.';
+    centerMessage.hidden=false;
+    centerMessage.textContent='Zaganjam kamero …';
+    try {
+      if(!navigator.mediaDevices?.getUserMedia) throw new Error('Kamera je dovoljena samo na HTTPS ali localhost.');
+      // NESPReMENJENO IZ TVOJE DELOUJOČE OSNOVE:
+      stream=await navigator.mediaDevices.getUserMedia({
+        audio:false,
+        video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480}}
       });
-
-      if (
-        [...sel.options].some(
-          x => x.value === previous
-        )
-      ) {
-        sel.value = previous;
-      }
-
+      if(myRun!==runId) return;
+      video.srcObject=stream;
+      await video.play();
+      if(!video.videoWidth||!video.videoHeight) throw new Error('Brskalnik ni poslal slike iz kamere.');
+      cameraReady=true;
+      cameraState.textContent=`Kamera: deluje (${video.videoWidth} × ${video.videoHeight})`;
+      centerMessage.textContent='Nalaganje detektorja …';
+      const factor=Math.min(1,640/Math.max(video.videoWidth,video.videoHeight));
+      detectCanvas.width=Math.max(1,Math.round(video.videoWidth*factor));
+      detectCanvas.height=Math.max(1,Math.round(video.videoHeight*factor));
+      frameId=requestAnimationFrame(render);
+      await loadARToolkit();
+      if(myRun!==runId) return;
+      detectorState.textContent='Detektor: nalagam kalibracijo …';
+      const param=await loadCameraParameters();
+      if(myRun!==runId) return;
+      await createDetector(param);
+      if(myRun!==runId) return;
+      detectorState.textContent='Detektor: pripravljen (barcode 3×3)';
+      centerMessage.hidden=true;
     } catch(err) {
-      console.warn(err);
+      if(myRun!==runId) return;
+      if(!cameraReady) cameraState.textContent='Kamera: ne deluje';
+      showError(err.message||String(err));
     }
   }
 
-  $('useCamera').addEventListener(
-    'click',
-    () => {
-
-      const id = $('cameras').value;
-
-      if (id) {
-        sessionStorage.setItem(
-          'coilCameraId',
-          id
-        );
-      } else {
-        sessionStorage.removeItem(
-          'coilCameraId'
-        );
-      }
-
-      location.reload();
-    }
-  );
-
-  // VIDEO DIAGNOSTIKA - KOT v21.
-
-  function diagnostics() {
-
-    const video = [
-      ...document.querySelectorAll('video')
-    ].find(
-      v => v.srcObject
-    ) || document.querySelector('video');
-
-    if (video) {
-      video.setAttribute('playsinline','');
-      video.muted = true;
-    }
-
-    if (scene.renderer) {
-      scene.renderer.setClearColor(0,0);
-      scene.renderer.setClearAlpha(0);
-    }
-
-    const canvas =
-      scene.querySelector('canvas');
-
-    if (canvas) {
-      canvas.style.setProperty(
-        'background',
-        'transparent',
-        'important'
-      );
-    }
-
-    const track =
-      video?.srcObject?.getVideoTracks?.()[0];
-
-    const info =
-      `Video ${video?.videoWidth||0}×` +
-      `${video?.videoHeight||0}`;
-
-    $('diag').textContent =
-      `${info} · ${$('fit').value}` +
-      ` · ${track?.label||'kamera še ni pripravljena'}`;
-  }
-
-  window.addEventListener('resize',diagnostics);
-
-  setInterval(diagnostics,900);
-
-  setTimeout(listCameras,1400);
-
-  updateStatus();
-  diagnostics();
-
-  window.addEventListener('error',e => {
-    $('status').textContent =
-      'Napaka: '+e.message;
+  restartButton.addEventListener('click',restart);
+  window.addEventListener('pagehide',()=>{
+    runId++;
+    cancelAnimationFrame(frameId);
+    resizeObserver.disconnect();
+    if(stream) stream.getTracks().forEach(track=>track.stop());
+    if(controller) controller.dispose();
+    if(cameraParam) cameraParam.dispose();
   });
-
+  restart();
 })();
 </script>
-
 </body>
 </html>
