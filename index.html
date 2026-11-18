@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#10141c">
-<title>Coil AR - ID 5, XYZ in kroznica R=15 cm</title>
+<title>Coil AR - ID 5, XYZ, kroznica in B polje</title>
 <style>
   * { box-sizing:border-box; }
   html, body { margin:0; height:100%; }
@@ -32,8 +32,8 @@
 <body>
 <div id="app">
   <header>
-    <h1>Coil AR – XYZ in krožnica</h1>
-    <p>ID 5 · izhodišče Z = −8 cm · krožnica R = 15 cm v ravnini XZ</p>
+    <h1>Coil AR – Biot-Savart na osi −Z</h1>
+    <p>ID 5 · izhodišče Z = −8 cm · krožnica R = 15 cm · B vektorji pri 0, 3, 6, 9 in 12 cm po osi −Z</p>
   </header>
   <main id="cameraStage" class="stage">
     <video id="cameraSource" autoplay muted playsinline></video>
@@ -49,7 +49,7 @@
   </main>
   <footer>
     <button id="restartButton" type="button">Ponovno zaženi kamero</button>
-    <small>Enak zajem in prikaz kamere kot v delujočem canvas testu.</small>
+    <small>Osnova kamere in trackerja je enaka delujoči canvas različici; dodani so le Biot-Savart vektorji.</small>
   </footer>
 </div>
 <script>
@@ -58,10 +58,18 @@
   // getTransMatSquare spodaj dobi fizično širino 35 mm.
   const MARKER_ID = 5;
   const MARKER_WIDTH_MM = 35;
-  const ORIGIN_Z_MM = -80;  // natanko -8 cm po naši osi Z
+  const ORIGIN_Z_MM = -80;           // premik koordinatnega izhodišča za -8 cm po Z
   const AXIS_LENGTH_MM = 50;
-  const COIL_RADIUS_MM = 150; // 15 cm: krožnica okoli premaknjenega izhodišča
+  const COIL_RADIUS_MM = 150;        // radij obroča 15 cm
   const CIRCLE_SEGMENTS = 180;
+
+  // BIOT-SAVART: vzorčne točke na osi -Z glede na premaknjeno izhodišče.
+  const B_SAMPLE_Z_MM = [0, -30, -60, -90, -120];
+  const MU0 = 4 * Math.PI * 1e-7;
+  const CURRENT_A = 1.0;             // za prikazane vrednosti B; lahko kasneje spremeniš
+  const BS_STEPS = 360;              // diskretizacija obroča za numerično integracijo
+  const B_ARROW_MIN_MM = 22;         // vizualna dolžina puščice na zaslonu (prek projekcije)
+  const B_ARROW_MAX_MM = 55;
 
   const stage = document.getElementById('cameraStage');
   const video = document.getElementById('cameraSource');
@@ -86,7 +94,23 @@
   const mat12 = new Float32Array(12);
   const mat16 = new Float32Array(16);
 
-  // NESPReMENJENO: enak canvas, DPR in dimenzioniranje kot v osnovnem testu.
+  // Vnaprej izračunane Biot-Savart vrednosti za prikaz na osi -Z.
+  const fieldSamples = buildFieldSamples();
+  const maxFieldMagnitude = Math.max(...fieldSamples.map(s => s.mag), 1e-12);
+
+  function buildFieldSamples() {
+    return B_SAMPLE_Z_MM.map(distanceMm => {
+      const point = {x:0, y:0, z:distanceMm};
+      const B = biotSavartAtPoint(point);
+      const mag = Math.hypot(B.x, B.y, B.z);
+      const dir = mag > 1e-12
+        ? {x:B.x/mag, y:B.y/mag, z:B.z/mag}
+        : {x:0, y:1, z:0};
+      return {distanceMm, point, B, mag, dir};
+    });
+  }
+
+  // NESPREMENJENO: enak canvas, DPR in dimenzioniranje kot v osnovnem testu.
   function updateDimensions() {
     const rect=stage.getBoundingClientRect();
     width=rect.width; height=rect.height;
@@ -123,7 +147,7 @@
     ];
   }
 
-  // Koordinatne osi za tuljavo (A-Frame konvencija):
+  // Koordinatne osi za tuljavo:
   // X je v ravnini markerja, Y pravokotno nad markerjem,
   // Z je v ravnini markerja. ARToolKit interno uporablja
   // drugo bazo: (x, y, z)_naše -> (x, -z, y)_ARToolKit.
@@ -136,29 +160,30 @@
     if(!Number.isFinite(clip[3]) || Math.abs(clip[3])<1e-7) return null;
     const nx=clip[0]/clip[3], ny=clip[1]/clip[3];
     if(!Number.isFinite(nx)||!Number.isFinite(ny)) return null;
-    // Matrika uporablja dimenzije detekcijskega canvasa.
     const px=(nx+1)*0.5*detectCanvas.width;
     const py=(1-ny)*0.5*detectCanvas.height;
     return {x:ox+px*scale,y:oy+py*scale};
   }
 
-  function arrow(start,end,color,label) {
+  function arrow(start,end,color,label,lineWidth=4) {
     if(!start || !end) return;
     const dx=end.x-start.x,dy=end.y-start.y;
     const distance=Math.hypot(dx,dy);
     if(distance<1) return;
     const ux=dx/distance,uy=dy/distance;
     const head=Math.min(15,Math.max(7,distance*.18));
-    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=4;
+    ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=lineWidth;
     ctx.lineCap='round'; ctx.lineJoin='round';
     ctx.beginPath(); ctx.moveTo(start.x,start.y); ctx.lineTo(end.x,end.y); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(end.x,end.y);
     ctx.lineTo(end.x-ux*head-uy*head*.5,end.y-uy*head+ux*head*.5);
     ctx.lineTo(end.x-ux*head+uy*head*.5,end.y-uy*head-ux*head*.5);
     ctx.closePath(); ctx.fill();
-    ctx.font='bold 19px system-ui'; ctx.lineWidth=3;
-    ctx.strokeStyle='#10141c'; ctx.strokeText(label,end.x+7,end.y-7);
-    ctx.fillText(label,end.x+7,end.y-7);
+    if (label) {
+      ctx.font='bold 19px system-ui'; ctx.lineWidth=3;
+      ctx.strokeStyle='#10141c'; ctx.strokeText(label,end.x+7,end.y-7);
+      ctx.fillText(label,end.x+7,end.y-7);
+    }
   }
 
   function drawAxes(ox,oy,scale) {
@@ -177,7 +202,6 @@
   }
 
   // Krožnica v ravnini XZ, z Y = 0. Središče je isto kot za XYZ osi.
-  // Vse koordinate so v milimetrih v sistemu markerja ID 5.
   function drawCircle(ox,oy,scale) {
     if (!markerPose || !projection) return;
     ctx.strokeStyle = '#ff9b21';
@@ -220,7 +244,107 @@
     ctx.fillText('ID 5',ox+pts[0].x*scale,Math.max(24,oy+pts[0].y*scale-10));
   }
 
-  // NESPReMENJENO: contain izris in zaznava istega neobrezanega vira.
+  // Biot-Savart za tokovni obroč v ravnini XZ, s središčem v koordinatnem izhodišču tuljave.
+  // Točka point je podana v lokalnih koordinatah tuljave v mm.
+  function biotSavartAtPoint(point) {
+    const px = point.x / 1000;
+    const py = point.y / 1000;
+    const pz = point.z / 1000;
+    const R = COIL_RADIUS_MM / 1000;
+    const dPhi = 2 * Math.PI / BS_STEPS;
+
+    let bx = 0, by = 0, bz = 0;
+
+    for (let i = 0; i < BS_STEPS; i++) {
+      const phi = i * dPhi;
+      const cx = R * Math.cos(phi);
+      const cy = 0;
+      const cz = R * Math.sin(phi);
+
+      const dlx = -R * Math.sin(phi) * dPhi;
+      const dly = 0;
+      const dlz =  R * Math.cos(phi) * dPhi;
+
+      const rx = px - cx;
+      const ry = py - cy;
+      const rz = pz - cz;
+      const r2 = rx*rx + ry*ry + rz*rz;
+      const r = Math.sqrt(r2);
+      const invR3 = 1 / (r2 * r);
+
+      // dl x r
+      const cxrX = dly * rz - dlz * ry;
+      const cxrY = dlz * rx - dlx * rz;
+      const cxrZ = dlx * ry - dly * rx;
+
+      bx += cxrX * invR3;
+      by += cxrY * invR3;
+      bz += cxrZ * invR3;
+    }
+
+    const factor = MU0 * CURRENT_A / (4 * Math.PI);
+    return {x: bx * factor, y: by * factor, z: bz * factor};
+  }
+
+  function drawFieldVectors(ox, oy, scale) {
+    if (!markerPose || !projection) return;
+
+    // Referenčna črta po osi -Z od središča do zadnje točke.
+    const axisStart = project(0, 0, ORIGIN_Z_MM, ox, oy, scale);
+    const axisEnd = project(0, 0, ORIGIN_Z_MM + B_SAMPLE_Z_MM[B_SAMPLE_Z_MM.length - 1], ox, oy, scale);
+    if (axisStart && axisEnd) {
+      ctx.strokeStyle = '#7cc9ff';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([7,5]);
+      ctx.beginPath();
+      ctx.moveTo(axisStart.x, axisStart.y);
+      ctx.lineTo(axisEnd.x, axisEnd.y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    fieldSamples.forEach(sample => {
+      const baseWorldZ = ORIGIN_Z_MM + sample.distanceMm;
+      const base = project(0, 0, baseWorldZ, ox, oy, scale);
+      if (!base) return;
+
+      const visLen = B_ARROW_MIN_MM + (B_ARROW_MAX_MM - B_ARROW_MIN_MM) * (sample.mag / maxFieldMagnitude);
+      const end = project(
+        sample.dir.x * visLen,
+        sample.dir.y * visLen,
+        baseWorldZ + sample.dir.z * visLen,
+        ox, oy, scale
+      );
+      if (!end) return;
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#10141c';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(base.x, base.y, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      arrow(base, end, '#ffd34d', '', 3.5);
+
+      const distanceCm = Math.abs(sample.distanceMm / 10);
+      const magMicroT = sample.mag * 1e6;
+      const label = `${distanceCm} cm`;
+      const value = `${magMicroT.toFixed(2)} µT`;
+
+      ctx.font = 'bold 14px system-ui';
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = '#10141c';
+      ctx.fillStyle = '#ffd34d';
+      ctx.strokeText(label, base.x + 8, base.y - 10);
+      ctx.fillText(label, base.x + 8, base.y - 10);
+      ctx.font = '12px system-ui';
+      ctx.strokeText(value, base.x + 8, base.y + 6);
+      ctx.fillText(value, base.x + 8, base.y + 6);
+    });
+  }
+
+  // NESPREMENJENO: contain izris in zaznava istega neobrezanega vira.
   function render(timestamp) {
     frameId=requestAnimationFrame(render);
     ctx.fillStyle='#000'; ctx.fillRect(0,0,width,height);
@@ -240,10 +364,8 @@
         controller.process(detectCanvas);
         processedFrames++;
 
-        // DODANO: iz iste detekcije izračun poze z merilom v mm.
-        // NE spremeni kamere ali velikosti detekcijskega canvasa.
-        const count=controller.getMarkerNum();
-        for(let i=0;i<count;i++) {
+        // Iz iste detekcije izračun poze z merilom v mm.
+        for(let i=0, count=controller.getMarkerNum(); i<count; i++) {
           const marker=controller.getMarker(i);
           if(marker?.idMatrix!==MARKER_ID) continue;
           controller.getTransMatSquare(i,MARKER_WIDTH_MM,mat12);
@@ -262,6 +384,7 @@
     if(currentIds.includes(MARKER_ID)) {
       currentMarkers.filter(m=>m.idMatrix===MARKER_ID).forEach(m=>drawMarkerOutline(m,ox,oy,markerScale));
       drawCircle(ox,oy,markerScale);
+      drawFieldVectors(ox,oy,markerScale);
       drawAxes(ox,oy,markerScale);
     }
 
@@ -270,11 +393,19 @@
       const found=currentIds.includes(MARKER_ID);
       diagnostics.classList.toggle('good',found);
       diagnostics.classList.remove('error');
-      resultEl.textContent=!detectorReady?'Čakam detektor …':found?'✓ ID 5 zaznan · XYZ −8 cm · R = 15 cm':'Marker ID 5 trenutno ni zaznan';
+      resultEl.textContent=!detectorReady
+        ? 'Čakam detektor …'
+        : found
+          ? '✓ ID 5 zaznan · obroč R = 15 cm · Biot-Savart B na osi −Z'
+          : 'Marker ID 5 trenutno ni zaznan';
       idState.textContent='Videni ID-ji: '+(currentIds.length?[...new Set(currentIds)].join(', '):'nobenega');
-      detectorState.textContent=detectorReady?'Detektor: pripravljen, obdelanih slik: '+processedFrames:'Detektor: inicializacija …';
+      detectorState.textContent=detectorReady
+        ? 'Detektor: pripravljen, obdelanih slik: '+processedFrames
+        : 'Detektor: inicializacija …';
       centerMessage.hidden=true;
-      hint.textContent=found?'Zeleni obris je na markerju; beležimo fizični odmik 80 mm.':'Pokaži celoten marker ID 5 v dobro osvetljeni kameri.';
+      hint.textContent=found
+        ? 'Rumene puščice so B vektorji za I = 1 A pri 0, 3, 6, 9 in 12 cm po osi −Z.'
+        : 'Pokaži celoten marker ID 5 v dobro osvetljeni kameri.';
     }
   }
 
@@ -354,7 +485,7 @@
     centerMessage.textContent='Zaganjam kamero …';
     try {
       if(!navigator.mediaDevices?.getUserMedia) throw new Error('Kamera je dovoljena samo na HTTPS ali localhost.');
-      // NESPReMENJENO IZ TVOJE DELOUJOČE OSNOVE:
+      // NESPREMENJENO IZ TVOJE DELOUJOČE OSNOVE:
       stream=await navigator.mediaDevices.getUserMedia({
         audio:false,
         video:{facingMode:{ideal:'environment'},width:{ideal:640},height:{ideal:480}}
