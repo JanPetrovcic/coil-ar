@@ -1,225 +1,693 @@
 
-<!DOCTYPE html>
+<!doctype html>
 <html lang="sl">
-
 <head>
-  <meta charset="utf-8">
+<meta charset="utf-8">
+<meta name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover">
 
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1"
-  >
+<title>Coil AR v23 - delujoca kamera + XYZ odmik</title>
 
-  <title>Coil AR v22 - XYZ in odmik Z</title>
+<!--
+  KAMERA IN SLEDENJE OSTAJATA KOT V v21.
+  Spremenjen je samo prikaz koordinatnega sistema ID 5.
+-->
 
-  <!-- A-Frame -->
-  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+<script>
+(() => {
+  const md = navigator.mediaDevices;
 
-  <!-- AR.js -->
-  <script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+  if (!md || !md.getUserMedia) return;
 
-  <style>
-    body {
-      margin: 0;
-      overflow: hidden;
-      font-family: Arial, sans-serif;
+  const original = md.getUserMedia.bind(md);
+  const chosen = sessionStorage.getItem('coilCameraId');
+
+  md.getUserMedia = async constraints => {
+    if (!constraints?.video) {
+      return original(constraints);
     }
 
-    .a-enter-vr,
-    .a-enter-ar {
-      display: none !important;
+    const v = typeof constraints.video === 'object'
+      ? {...constraints.video}
+      : {};
+
+    v.width = {ideal:1280};
+    v.height = {ideal:960};
+
+    if (chosen) {
+      delete v.facingMode;
+      v.deviceId = {exact:chosen};
     }
 
-    #status {
-      position: fixed;
-      top: 12px;
-      left: 10px;
-      right: 10px;
+    try {
+      return await original({
+        ...constraints,
+        video:v
+      });
+    } catch(err) {
+      window.coilCameraError = err.name;
 
-      z-index: 1000;
-
-      padding: 10px;
-
-      text-align: center;
-      color: white;
-      font-size: 14px;
-      font-weight: bold;
-
-      background: rgba(0, 0, 0, 0.7);
-      border-radius: 9px;
-
-      pointer-events: none;
+      return original({
+        video:{
+          facingMode:{ideal:'environment'},
+          width:{ideal:1280},
+          height:{ideal:960}
+        },
+        audio:false
+      });
     }
-  </style>
+  };
+})();
+</script>
 
+<script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+<script src="https://cdn.jsdelivr.net/gh/AR-js-org/AR.js@3.4.5/aframe/build/aframe-ar.js"></script>
+
+<style>
+* {
+  box-sizing:border-box;
+}
+
+html,body {
+  margin:0;
+  padding:0;
+  width:100%;
+  height:100%;
+  overflow:hidden;
+  background:#111;
+  font-family:Arial,sans-serif;
+}
+
+body {
+  height:100dvh;
+}
+
+/*
+  POVSEM ENAK PRIKAZ KAMERE KOT v21.
+  Privzeto object-fit:contain.
+*/
+
+video,
+video.arjs-video,
+body>video,
+#arjs-video {
+  position:fixed!important;
+  top:0!important;
+  left:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  max-width:none!important;
+  max-height:none!important;
+  margin:0!important;
+  transform:none!important;
+  object-fit:contain!important;
+  display:block!important;
+  visibility:visible!important;
+  opacity:1!important;
+  z-index:0!important;
+}
+
+html[data-fit="cover"] video,
+html[data-fit="cover"] video.arjs-video,
+html[data-fit="cover"] #arjs-video {
+  object-fit:cover!important;
+}
+
+a-scene {
+  position:fixed!important;
+  inset:0!important;
+  width:100vw!important;
+  height:100dvh!important;
+  max-width:100vw!important;
+  overflow:hidden!important;
+  background:transparent!important;
+  z-index:1!important;
+}
+
+a-scene canvas {
+  background:transparent!important;
+}
+
+.a-enter-vr,
+.a-enter-ar {
+  display:none!important;
+}
+
+#hud {
+  position:fixed;
+  z-index:5;
+  top:calc(8px + env(safe-area-inset-top));
+  left:8px;
+  right:8px;
+  text-align:center;
+  pointer-events:none;
+  color:#fff;
+}
+
+#status,#diag {
+  padding:7px 9px;
+  background:#0a1929d9;
+  border-radius:9px;
+  margin-bottom:5px;
+  overflow-wrap:anywhere;
+}
+
+#status {
+  font-size:13px;
+  font-weight:bold;
+}
+
+#diag {
+  font-size:11px;
+  color:#bfe5fc;
+  line-height:1.4;
+}
+
+#controls {
+  position:fixed;
+  z-index:10;
+  bottom:calc(9px + env(safe-area-inset-bottom));
+  left:8px;
+  right:8px;
+  max-width:430px;
+  margin:0 auto;
+  background:#0a1929f2;
+  color:white;
+  border:1px solid #7790a7;
+  border-radius:12px;
+  padding:10px;
+  font-size:12px;
+}
+
+#controls label {
+  display:block;
+  margin:4px 0 7px;
+}
+
+#controls select,
+#controls button {
+  width:100%;
+  background:#27435c;
+  color:white;
+  border:1px solid #7798b3;
+  border-radius:8px;
+  padding:9px;
+  font-size:13px;
+}
+
+#controls button {
+  background:#1467b9;
+  font-weight:bold;
+  touch-action:manipulation;
+}
+
+#controls p {
+  margin:8px 0 2px;
+  font-size:11px;
+  color:#d3e2ec;
+  line-height:1.4;
+}
+
+#cameraSection {
+  display:none;
+  padding-top:8px;
+}
+
+#cameraSection.open {
+  display:block;
+}
+</style>
 </head>
 
 <body>
 
+<div id="hud">
+
   <div id="status">
-    Coil AR v22 — iščem marker ID 5 ...
+    Coil AR v23 — iščem marker ID 5 ...
   </div>
 
-  <a-scene
-    embedded
-    vr-mode-ui="enabled:false"
-    device-orientation-permission-ui="enabled:false"
-    renderer="alpha:true;antialias:true"
-    arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;"
-  >
+  <div id="diag">
+    Video: čakam.
+  </div>
 
-    <!-- MARKER ID 5 -->
-    <a-marker
-      id="marker5"
-      type="barcode"
-      value="5"
-      emitevents="true"
-    >
+</div>
 
-      <!--
-        FIZIČNO MERILO
+<!--
+  AR.js NASTAVITVE SO IDENTIČNE v21.
+  NE SPREMINJAJ!
+-->
 
-        Marker ID 5:
-        širina = 3,5 cm
+<a-scene
+  id="scene"
+  embedded
+  vr-mode-ui="enabled:false"
+  device-orientation-permission-ui="enabled:false"
+  renderer="alpha:true;antialias:true"
+  arjs="sourceType:webcam;debugUIEnabled:false;detectionMode:mono_and_matrix;matrixCodeType:3x3;sourceWidth:1280;sourceHeight:960;displayWidth:1280;displayHeight:960;canvasWidth:960;canvasHeight:720;maxDetectionRate:30;">
 
-        1 scenska enota ≈ 3,5 cm
+  <!-- ===================================== -->
+  <!-- MARKER ID 5                           -->
+  <!-- ===================================== -->
 
-        Želeni odmik Z:
-        -8 cm / 3,5 cm = -2,285714
+  <a-marker
+    id="m5"
+    type="barcode"
+    value="5"
+    size="0.035"
+    emitevents="true"
+    smooth="false">
 
-        Izhodišče novega koordinatnega
-        sistema leži 8 cm v smeri -Z
-        od središča markerja.
-      -->
+    <!--
+      REFERENČNI CIAN KVADRAT
+      Ostane neposredno na markerju,
+      da lahko preveriš sledenje.
+    -->
 
-      <a-entity
-        id="xyz-origin"
-        position="0 0 -2.285714"
-      >
+    <a-plane
+      rotation="-90 0 0"
+      position="0 0.01 0"
+      width="0.8"
+      height="0.8"
+      color="#00ffff"
+      material="transparent:true;opacity:0.25;side:double">
+    </a-plane>
 
-        <!-- BELO IZHODIŠČE -->
-        <a-sphere
-          position="0 0 0"
-          radius="0.065"
-          color="#ffffff"
-          material="shader:flat"
-        >
-        </a-sphere>
+    <!-- ================================= -->
+    <!-- NOVO: PREMIKNJENO IZHODIŠČE XYZ   -->
+    <!-- ================================= -->
 
+    <!--
+      MARKER: 35 mm = 3,5 cm
 
-        <!-- ===================== -->
-        <!-- OS X - RDEČA          -->
-        <!-- Dolžina osi: 5 cm     -->
-        <!-- ===================== -->
+      ŽELENI ODMIK:
+      Z = -8 cm
 
-        <a-cylinder
-          position="0.65 0 0"
-          rotation="0 0 -90"
-          radius="0.018"
-          height="1.30"
-          color="#ff3030"
-          material="shader:flat"
-        >
-        </a-cylinder>
+      PRETVORBA:
+      -8 / 3,5 = -2,285714
 
-        <a-cone
-          position="1.38 0 0"
-          rotation="0 0 -90"
-          radius-bottom="0.085"
-          radius-top="0"
-          height="0.25"
-          color="#ff3030"
-          material="shader:flat"
-        >
-        </a-cone>
+      Premaknemo cel XYZ sistem,
+      ne kamere in ne markerja.
+    -->
 
+    <a-entity
+      id="xyz-origin"
+      position="0 0 -2.285714">
 
-        <!-- ===================== -->
-        <!-- OS Y - ZELENA         -->
-        <!-- Dolžina osi: 5 cm     -->
-        <!-- ===================== -->
+      <!-- BELO IZHODIŠČE -->
 
-        <a-cylinder
-          position="0 0.65 0"
-          radius="0.018"
-          height="1.30"
-          color="#22ff55"
-          material="shader:flat"
-        >
-        </a-cylinder>
+      <a-sphere
+        position="0 0 0"
+        radius="0.055"
+        color="#ffffff"
+        material="shader:flat">
+      </a-sphere>
 
-        <a-cone
-          position="0 1.38 0"
-          radius-bottom="0.085"
-          radius-top="0"
-          height="0.25"
-          color="#22ff55"
-          material="shader:flat"
-        >
-        </a-cone>
+      <!-- ========================== -->
+      <!-- X - RDEČA                  -->
+      <!-- ========================== -->
 
+      <a-cylinder
+        position="0.50 0 0"
+        rotation="0 0 -90"
+        radius="0.015"
+        height="1.0"
+        color="#ff3030"
+        material="shader:flat">
+      </a-cylinder>
 
-        <!-- ===================== -->
-        <!-- OS Z - MODRA          -->
-        <!-- Dolžina osi: 5 cm     -->
-        <!-- ===================== -->
+      <a-cone
+        position="1.08 0 0"
+        rotation="0 0 -90"
+        radius-bottom="0.07"
+        radius-top="0"
+        height="0.18"
+        color="#ff3030"
+        material="shader:flat">
+      </a-cone>
 
-        <a-cylinder
-          position="0 0 0.65"
-          rotation="90 0 0"
-          radius="0.018"
-          height="1.30"
-          color="#2288ff"
-          material="shader:flat"
-        >
-        </a-cylinder>
+      <!-- ========================== -->
+      <!-- Y - ZELENA                 -->
+      <!-- ========================== -->
 
-        <a-cone
-          position="0 0 1.38"
-          rotation="90 0 0"
-          radius-bottom="0.085"
-          radius-top="0"
-          height="0.25"
-          color="#2288ff"
-          material="shader:flat"
-        >
-        </a-cone>
+      <a-cylinder
+        position="0 0.50 0"
+        radius="0.015"
+        height="1.0"
+        color="#25ff55"
+        material="shader:flat">
+      </a-cylinder>
 
-      </a-entity>
+      <a-cone
+        position="0 1.08 0"
+        radius-bottom="0.07"
+        radius-top="0"
+        height="0.18"
+        color="#25ff55"
+        material="shader:flat">
+      </a-cone>
 
-    </a-marker>
+      <!-- ========================== -->
+      <!-- Z - MODRA                  -->
+      <!-- ========================== -->
 
-    <!-- KAMERA -->
-    <a-entity camera></a-entity>
+      <a-cylinder
+        position="0 0 0.50"
+        rotation="90 0 0"
+        radius="0.015"
+        height="1.0"
+        color="#248bff"
+        material="shader:flat">
+      </a-cylinder>
 
-  </a-scene>
+      <a-cone
+        position="0 0 1.08"
+        rotation="90 0 0"
+        radius-bottom="0.07"
+        radius-top="0"
+        height="0.18"
+        color="#248bff"
+        material="shader:flat">
+      </a-cone>
 
+    </a-entity>
 
-  <script>
-    const marker = document.getElementById(
-      "marker5"
+  </a-marker>
+
+  <!-- ===================================== -->
+  <!-- MARKER ID 6                           -->
+  <!-- Ohranjena kontrolna kocka iz v21.      -->
+  <!-- ===================================== -->
+
+  <a-marker
+    id="m6"
+    type="barcode"
+    value="6"
+    size="0.030"
+    emitevents="true"
+    smooth="false">
+
+    <a-plane
+      rotation="-90 0 0"
+      position="0 0.01 0"
+      width="0.8"
+      height="0.8"
+      color="#ffff66"
+      material="transparent:true;opacity:0.35;side:double">
+    </a-plane>
+
+    <a-box
+      position="0 0.30 0"
+      width="0.4"
+      height="0.6"
+      depth="0.4"
+      color="#2389ff">
+    </a-box>
+
+  </a-marker>
+
+  <!-- KAMERA - NESPREMENJENO -->
+
+  <a-entity camera></a-entity>
+
+</a-scene>
+
+<!-- NASTAVITVE KAMERE - KOT v21 -->
+
+<div id="controls">
+
+  <label for="fit">
+    Prikaz kamere
+  </label>
+
+  <select id="fit">
+
+    <option value="contain">
+      Celotna slika (brez povečave zaradi izreza)
+    </option>
+
+    <option value="cover">
+      Zapolni zaslon (lahko odreže robove)
+    </option>
+
+  </select>
+
+  <button
+    id="toggleCamera"
+    type="button"
+    style="margin-top:8px">
+    ⚙ Izbira objektiva
+  </button>
+
+  <div id="cameraSection">
+
+    <label for="cameras">
+      Kamera telefona
+    </label>
+
+    <select id="cameras">
+      <option value="">
+        Privzeta zadnja kamera
+      </option>
+    </select>
+
+    <button
+      id="useCamera"
+      type="button"
+      style="margin-top:7px">
+      Uporabi izbrano kamero ↻
+    </button>
+
+  </div>
+
+  <p>
+    ID 5: XYZ premaknjen za Z = −8 cm.
+    ID 6: modra kontrolna kocka.
+  </p>
+
+</div>
+
+<script>
+(() => {
+
+  const $ = id => document.getElementById(id);
+  const scene = $('scene');
+
+  const found = {
+    5:false,
+    6:false
+  };
+
+  $('m5').addEventListener(
+    'markerFound',
+    () => {
+      found[5] = true;
+      updateStatus();
+    }
+  );
+
+  $('m5').addEventListener(
+    'markerLost',
+    () => {
+      found[5] = false;
+      updateStatus();
+    }
+  );
+
+  $('m6').addEventListener(
+    'markerFound',
+    () => {
+      found[6] = true;
+      updateStatus();
+    }
+  );
+
+  $('m6').addEventListener(
+    'markerLost',
+    () => {
+      found[6] = false;
+      updateStatus();
+    }
+  );
+
+  function updateStatus() {
+
+    $('status').textContent =
+      `Coil AR v23 · ID 5 ${found[5]?'✓':'–'}` +
+      ` · ID 6 ${found[6]?'✓':'–'}` +
+      ` · Z = −8 cm`;
+  }
+
+  // OHRANIMO IZBIRO PRIKAZA IZ v21.
+
+  const savedFit =
+    localStorage.getItem('coilARv21Fit');
+
+  $('fit').value =
+    savedFit === 'cover' ? 'cover' : 'contain';
+
+  function setFit() {
+
+    document.documentElement.dataset.fit =
+      $('fit').value;
+
+    try {
+      localStorage.setItem(
+        'coilARv21Fit',
+        $('fit').value
+      );
+    } catch(e) {}
+  }
+
+  $('fit').addEventListener(
+    'change',
+    setFit
+  );
+
+  setFit();
+
+  // OHRANIMO IZBIRO OBJEKTIVA IZ v21.
+
+  $('toggleCamera').addEventListener(
+    'click',
+    () => {
+
+      const open =
+        $('cameraSection').classList.toggle('open');
+
+      $('toggleCamera').textContent =
+        open
+          ? '✕ Zapri izbiro objektiva'
+          : '⚙ Izbira objektiva';
+    }
+  );
+
+  async function listCameras() {
+
+    const sel = $('cameras');
+
+    const previous =
+      sessionStorage.getItem('coilCameraId') || '';
+
+    sel.replaceChildren(
+      new Option('Privzeta zadnja kamera','')
     );
 
-    const status = document.getElementById(
-      "status"
-    );
+    if (!navigator.mediaDevices?.enumerateDevices) {
+      return;
+    }
 
-    marker.addEventListener(
-      "markerFound",
-      () => {
-        status.textContent =
-          "✓ ID 5 zaznan | XYZ: Z = -8 cm";
+    try {
+
+      const ds = (
+        await navigator.mediaDevices.enumerateDevices()
+      ).filter(
+        x => x.kind === 'videoinput'
+      );
+
+      ds.forEach((d,i) => {
+
+        sel.add(
+          new Option(
+            d.label || `Kamera ${i+1}`,
+            d.deviceId
+          )
+        );
+      });
+
+      if (
+        [...sel.options].some(
+          x => x.value === previous
+        )
+      ) {
+        sel.value = previous;
       }
-    );
 
-    marker.addEventListener(
-      "markerLost",
-      () => {
-        status.textContent =
-          "Iščem marker ID 5 ...";
+    } catch(err) {
+      console.warn(err);
+    }
+  }
+
+  $('useCamera').addEventListener(
+    'click',
+    () => {
+
+      const id = $('cameras').value;
+
+      if (id) {
+        sessionStorage.setItem(
+          'coilCameraId',
+          id
+        );
+      } else {
+        sessionStorage.removeItem(
+          'coilCameraId'
+        );
       }
-    );
-  </script>
+
+      location.reload();
+    }
+  );
+
+  // VIDEO DIAGNOSTIKA - KOT v21.
+
+  function diagnostics() {
+
+    const video = [
+      ...document.querySelectorAll('video')
+    ].find(
+      v => v.srcObject
+    ) || document.querySelector('video');
+
+    if (video) {
+      video.setAttribute('playsinline','');
+      video.muted = true;
+    }
+
+    if (scene.renderer) {
+      scene.renderer.setClearColor(0,0);
+      scene.renderer.setClearAlpha(0);
+    }
+
+    const canvas =
+      scene.querySelector('canvas');
+
+    if (canvas) {
+      canvas.style.setProperty(
+        'background',
+        'transparent',
+        'important'
+      );
+    }
+
+    const track =
+      video?.srcObject?.getVideoTracks?.()[0];
+
+    const info =
+      `Video ${video?.videoWidth||0}×` +
+      `${video?.videoHeight||0}`;
+
+    $('diag').textContent =
+      `${info} · ${$('fit').value}` +
+      ` · ${track?.label||'kamera še ni pripravljena'}`;
+  }
+
+  window.addEventListener('resize',diagnostics);
+
+  setInterval(diagnostics,900);
+
+  setTimeout(listCameras,1400);
+
+  updateStatus();
+  diagnostics();
+
+  window.addEventListener('error',e => {
+    $('status').textContent =
+      'Napaka: '+e.message;
+  });
+
+})();
+</script>
 
 </body>
 </html>
